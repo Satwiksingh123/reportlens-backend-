@@ -29,7 +29,7 @@ worker, and the worker walks the report through each service in turn.
 | [`services/data_synthesis`](services/data_synthesis) | Generates synthetic lab-report images (with ground truth) for training | working (5 tests green) |
 | [`services/ocr_engine`](services/ocr_engine) | Classical line segmentation + fine-tuned TrOCR recognition; Colab training notebook | working (5 tests green; recogniser trains on Colab GPU) |
 | [`services/rag`](services/rag) | Vector store over curated medical reference text, grounds LLM explanations | working (5 tests green, wired into pipeline) |
-| [`services/llm_service`](services/llm_service) | Ollama-hosted LLM + prompt templates + LoRA fine-tuning pipeline | in progress |
+| [`services/llm_service`](services/llm_service) | Ollama-hosted LLM + prompts + safety guardrails + QLoRA fine-tuning (Colab) | working (15 tests green) |
 
 ## Supported report types (v1)
 
