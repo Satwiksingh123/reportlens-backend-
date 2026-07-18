@@ -1,0 +1,24 @@
+[project]
+name = "reportlens-medical-parser"
+version = "0.1.0"
+description = "Rule + NER based parser that turns raw lab-report text into structured biomarkers."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+ner = ["spacy>=3.7"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# The reference table is dense tabular data; long rows are more readable than wrapped.
+"medical_parser/reference_ranges.py" = ["E501"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
