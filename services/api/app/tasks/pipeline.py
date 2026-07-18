@@ -40,7 +40,7 @@ def process_report(report_id: int) -> None:
         enriched_rows, summary = _run_explainer(parsed_rows)
 
         for row in enriched_rows:
-            db.add(StructuredResult(report_id=report.id, **row))
+            db.add(StructuredResult(report_id=report.id, **_result_kwargs(row)))
         report.summary = summary
         report.status = ReportStatus.completed
         db.commit()
@@ -54,6 +54,33 @@ def process_report(report_id: int) -> None:
             db.commit()
     finally:
         db.close()
+
+
+_RESULT_COLUMNS = {
+    "panel",
+    "test_name",
+    "value",
+    "unit",
+    "reference_range",
+    "status",
+    "explanation",
+    "evidence",
+}
+
+
+def _result_kwargs(row: dict) -> dict:
+    """Project an enriched explainer row onto StructuredResult columns.
+
+    Keys the model has no column for (e.g. guardrail_flags) are folded into the evidence
+    JSON so nothing is silently lost and the insert stays schema-safe.
+    """
+    kwargs = {k: v for k, v in row.items() if k in _RESULT_COLUMNS}
+    flags = row.get("guardrail_flags")
+    if flags:
+        evidence = dict(kwargs.get("evidence") or {})
+        evidence["guardrail_flags"] = flags
+        kwargs["evidence"] = evidence
+    return kwargs
 
 
 # --- stage stubs (replaced by real service calls incrementally) ---
