@@ -28,7 +28,7 @@ worker, and the worker walks the report through each service in turn.
 | [`services/medical_parser`](services/medical_parser) | Rule engine + reference-range KB → structured `{test, value, unit, range, status}` | working (13 tests green) |
 | [`services/data_synthesis`](services/data_synthesis) | Generates synthetic lab-report images (with ground truth) for training | working (5 tests green) |
 | [`services/ocr_engine`](services/ocr_engine) | Fine-tuned OCR (docTR/PaddleOCR base) for report text + table extraction | planned (training scaffold) |
-| [`services/rag`](services/rag) | Vector store over curated medical reference text, grounds LLM explanations | planned |
+| [`services/rag`](services/rag) | Vector store over curated medical reference text, grounds LLM explanations | working (5 tests green, wired into pipeline) |
 | [`services/llm_service`](services/llm_service) | Ollama-hosted LLM + prompt templates + LoRA fine-tuning pipeline | in progress |
 
 ## Supported report types (v1)

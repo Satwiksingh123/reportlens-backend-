@@ -11,3 +11,4 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.9
 httpx==0.27.2
+numpy==2.1.1  # required by the sibling rag package (grounding retriever)
