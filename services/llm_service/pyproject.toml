@@ -6,11 +6,20 @@ requires-python = ">=3.11"
 dependencies = ["httpx>=0.27"]
 
 [project.optional-dependencies]
+# QLoRA fine-tuning stack (Colab GPU). Heavy + Linux/CUDA-oriented, so kept optional.
+finetune = [
+    "unsloth",
+    "trl>=0.9",
+    "transformers>=4.44",
+    "datasets>=2.20",
+    "accelerate>=0.33",
+]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["notebooks"]  # Colab notebooks aren't linted as production code
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

@@ -32,9 +32,35 @@ enriched, summary = explain_biomarkers(rows, client=OllamaClient())
 Pass a `retriever(test_name) -> notes` callable (from the RAG service) to ground
 explanations in curated references.
 
+## Fine-tuning the explainer (LoRA, optional — Colab GPU)
+
+The base model works out of the box. To specialise it in the ReportLens style + safety
+envelope, there's a QLoRA pipeline under [`llm_service/finetune`](llm_service/finetune):
+
+- [`dataset.py`](llm_service/finetune/dataset.py) — chat-format records + hand-written,
+  safety-checked seed exemplars (pure, unit-tested).
+- [`build_dataset.py`](llm_service/finetune/build_dataset.py) — synthetic report →
+  parser → RAG-grounded teacher → `explainer_sft.jsonl`.
+- [`train_lora.py`](llm_service/finetune/train_lora.py) — Unsloth 4-bit QLoRA on
+  Qwen2.5-3B, then **GGUF export for Ollama** (stays self-hosted, no external API).
+
+**How to run (no coding):** open
+[`notebooks/train_lora_colab.ipynb`](notebooks/train_lora_colab.ipynb) in Google Colab,
+set a T4 GPU runtime, and *Run all*. It clones the repo, builds the dataset, fine-tunes,
+does a sample generation, and downloads the GGUF. Then on your machine:
+
+```bash
+ollama create reportlens-explainer -f explainer-lora-gguf/Modelfile
+# API .env:  OLLAMA_MODEL=reportlens-explainer
+```
+
+> The teacher is the deterministic RAG+template explainer, so the LoRA primarily learns
+> ReportLens's *format and safety behaviour*. Swap in a stronger teacher to raise answer
+> quality — the pipeline and record format don't change.
+
 ## Test
 
 ```bash
-pytest -q          # 10 tests (guardrails + explainer fallback)
+pytest -q          # 15 tests (guardrails + explainer fallback + finetune dataset)
 ruff check .
 ```

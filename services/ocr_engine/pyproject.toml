@@ -21,6 +21,7 @@ dev = ["pytest>=8", "ruff>=0.6"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["notebooks"]  # Colab notebooks aren't linted as production code
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
