@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        pkg: [medical_parser, data_synthesis, llm_service, rag]
+        pkg: [medical_parser, data_synthesis, llm_service, rag, ocr_engine]
     defaults:
       run:
         working-directory: services/${{ matrix.pkg }}

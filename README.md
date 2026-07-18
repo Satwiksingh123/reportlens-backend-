@@ -27,7 +27,7 @@ worker, and the worker walks the report through each service in turn.
 | [`services/api`](services/api) | FastAPI backend: auth, uploads, report history, orchestration | working (async pipeline wired, parser integrated) |
 | [`services/medical_parser`](services/medical_parser) | Rule engine + reference-range KB → structured `{test, value, unit, range, status}` | working (13 tests green) |
 | [`services/data_synthesis`](services/data_synthesis) | Generates synthetic lab-report images (with ground truth) for training | working (5 tests green) |
-| [`services/ocr_engine`](services/ocr_engine) | Fine-tuned OCR (docTR/PaddleOCR base) for report text + table extraction | planned (training scaffold) |
+| [`services/ocr_engine`](services/ocr_engine) | Classical line segmentation + fine-tuned TrOCR recognition; Colab training notebook | working (5 tests green; recogniser trains on Colab GPU) |
 | [`services/rag`](services/rag) | Vector store over curated medical reference text, grounds LLM explanations | working (5 tests green, wired into pipeline) |
 | [`services/llm_service`](services/llm_service) | Ollama-hosted LLM + prompt templates + LoRA fine-tuning pipeline | in progress |
 

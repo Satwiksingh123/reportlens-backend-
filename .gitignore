@@ -10,10 +10,13 @@ venv/
 # data & model artifacts
 data/raw/
 data/synthetic/generated/
+artifacts/
+**/artifacts/
 *.ckpt
 *.pt
 *.gguf
 *.onnx
+*.safetensors
 models/checkpoints/
 
 # db
