@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"
 
+    # Path to a fine-tuned TrOCR model dir (from services/ocr_engine training). When unset
+    # or unavailable, the OCR client falls back to a deterministic stub.
+    ocr_model_dir: str | None = None
+
     upload_dir: str = "/app/uploads"
     max_upload_mb: int = 20
 

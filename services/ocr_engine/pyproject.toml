@@ -1,0 +1,29 @@
+[project]
+name = "reportlens-ocr-engine"
+version = "0.1.0"
+description = "Custom OCR pipeline: classical line segmentation + fine-tuned TrOCR recognition."
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26", "pillow>=10.0"]
+
+[project.optional-dependencies]
+# Heavy training/inference stack. Optional so the package stays light for CI and for the
+# API container (which degrades to a stub when these aren't installed).
+train = [
+    "torch>=2.2",
+    "transformers>=4.44",
+    "datasets>=2.20",
+    "jiwer>=3.0",          # CER / WER metrics
+    "accelerate>=0.33",
+    "sentencepiece>=0.2",
+]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
