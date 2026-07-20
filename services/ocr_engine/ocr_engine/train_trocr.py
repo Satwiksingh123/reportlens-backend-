@@ -139,6 +139,15 @@ def main() -> None:
     model.config.max_length = args.max_target_length
     model.config.num_beams = 4
 
+    # Recent transformers generate from `generation_config`, NOT `model.config`. Its
+    # default max_length is 20 tokens, which truncates every prediction and produces a
+    # CER above 1.0 even while training loss looks fine. Set it explicitly.
+    model.generation_config.max_length = args.max_target_length
+    model.generation_config.num_beams = 4
+    model.generation_config.decoder_start_token_id = processor.tokenizer.cls_token_id
+    model.generation_config.eos_token_id = processor.tokenizer.sep_token_id
+    model.generation_config.pad_token_id = processor.tokenizer.pad_token_id
+
     train_ds = _build_torch_dataset(train_s, processor, args.max_target_length)
     val_ds = _build_torch_dataset(val_s, processor, args.max_target_length)
 
@@ -154,6 +163,8 @@ def main() -> None:
 
     training_args = Seq2SeqTrainingArguments(
         predict_with_generate=True,
+        generation_max_length=args.max_target_length,
+        generation_num_beams=4,
         eval_strategy="epoch",
         save_strategy="epoch",
         per_device_train_batch_size=args.batch_size,
