@@ -54,6 +54,17 @@ def test_extract_from_image_path(tmp_path):
     assert text == "L\nL"
 
 
+def test_missing_model_dir_raises_clear_error():
+    """A path-like model dir that doesn't exist must not be mistaken for a Hub repo id
+    (which fails with a confusing HTTP 401)."""
+    import pytest
+
+    from ocr_engine.recognizer import TrOCRRecognizer
+
+    with pytest.raises(FileNotFoundError, match="Train it first"):
+        TrOCRRecognizer(model_dir="artifacts/does-not-exist")
+
+
 def test_build_line_samples_from_synthetic_layout(tmp_path):
     # emulate a data_synthesis sample: page png + <id>.ocr.json with boxes
     img = _make_page(["TSH 3.1", "Free T4 1.2"])
