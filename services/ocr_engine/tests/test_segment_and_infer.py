@@ -70,12 +70,14 @@ def test_build_line_samples_from_synthetic_layout(tmp_path):
     img = _make_page(["TSH 3.1", "Free T4 1.2"])
     (tmp_path / "000000.png")  # touch via save below
     img.save(tmp_path / "000000.png")
-    boxes = [{"text": "TSH 3.1", "box": [20, 15, 200, 40]},
-             {"text": "Free T4 1.2", "box": [20, 45, 200, 70]}]
+    # column-aligned text, as the synthetic generator emits it
+    boxes = [{"text": "TSH          3.1", "box": [20, 15, 200, 40]},
+             {"text": "Free T4      1.2", "box": [20, 45, 200, 70]}]
     (tmp_path / "000000.ocr.json").write_text(json.dumps(boxes))
 
     samples = build_line_samples(tmp_path)
     assert [s.text for s in samples] == ["TSH 3.1", "Free T4 1.2"]
+    assert all("  " not in s.text for s in samples)  # column padding collapsed
     assert all(s.image.width > 0 and s.image.height > 0 for s in samples)
 
     train, val = train_val_split(samples, val_ratio=0.5, seed=1)

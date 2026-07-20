@@ -38,7 +38,10 @@ def build_line_samples(data_dir: str | Path, pad: int = 2) -> list[LineSample]:
         w, h = page.size
         lines = json.loads(ocr_json.read_text())
         for line in lines:
-            text = (line.get("text") or "").strip()
+            # Report rows are column-aligned with long runs of spaces. Exact space counts
+            # are not recoverable from an image and would dominate the character error
+            # rate, so collapse whitespace - downstream parsing splits on it anyway.
+            text = " ".join((line.get("text") or "").split())
             if not text:
                 continue
             x0, y0, x1, y1 = line["box"]
