@@ -44,6 +44,22 @@ def _generate_dataset(num_reports: int, data_dir: Path, seed: int) -> None:
         (data_dir / f"{stem}.ocr.json").write_text(json.dumps(boxes))
 
 
+def load_processor(model_dir: str):
+    """Load a TrOCRProcessor, falling back to the slow tokenizer.
+
+    Building TrOCR's *fast* tokenizer converts from the slow one, which needs
+    sentencepiece/protobuf. When that conversion isn't possible we ask for the slow
+    tokenizer directly instead of failing the whole run.
+    """
+    from transformers import TrOCRProcessor
+
+    try:
+        return TrOCRProcessor.from_pretrained(model_dir)
+    except Exception as exc:  # noqa: BLE001 - any conversion failure -> slow tokenizer
+        print(f"[warn] fast tokenizer unavailable ({exc}); falling back to use_fast=False")
+        return TrOCRProcessor.from_pretrained(model_dir, use_fast=False)
+
+
 def _build_torch_dataset(samples, processor, max_target_length: int):
     import torch
 
@@ -88,7 +104,6 @@ def main() -> None:
     from transformers import (
         Seq2SeqTrainer,
         Seq2SeqTrainingArguments,
-        TrOCRProcessor,
         VisionEncoderDecoderModel,
         default_data_collator,
     )
@@ -103,7 +118,7 @@ def main() -> None:
     train_s, val_s = train_val_split(samples, val_ratio=0.1, seed=args.seed)
     print(f"[data] {len(train_s)} train / {len(val_s)} val line images")
 
-    processor = TrOCRProcessor.from_pretrained(args.base_model)
+    processor = load_processor(args.base_model)
     model = VisionEncoderDecoderModel.from_pretrained(args.base_model)
 
     # standard TrOCR fine-tuning config

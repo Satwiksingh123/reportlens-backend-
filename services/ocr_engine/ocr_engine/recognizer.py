@@ -5,6 +5,7 @@
   - TrOCRRecognizer: the fine-tuned model (optional `train` extra; lazy imports torch).
 """
 
+from pathlib import Path
 from typing import Protocol
 
 from PIL import Image
@@ -36,12 +37,23 @@ class TrOCRRecognizer:  # pragma: no cover - requires the optional train extra +
     cheap and the API can fall back when torch/weights are absent."""
 
     def __init__(self, model_dir: str = "microsoft/trocr-small-printed", device: str | None = None):
+        # Checked before importing torch: a path-like model_dir that doesn't exist would
+        # otherwise be treated as a Hub repo id and fail with a confusing HTTP 401/404.
+        if ("/" in model_dir or "\\" in model_dir) and not Path(model_dir).exists():
+            raise FileNotFoundError(
+                f"OCR model directory not found: {model_dir!r}. Train it first "
+                "(services/ocr_engine/notebooks/train_ocr_colab.ipynb) or pass a Hugging "
+                "Face model id such as 'microsoft/trocr-small-printed'."
+            )
+
         import torch
-        from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+        from transformers import VisionEncoderDecoderModel
+
+        from ocr_engine.train_trocr import load_processor
 
         self._torch = torch
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.processor = TrOCRProcessor.from_pretrained(model_dir)
+        self.processor = load_processor(model_dir)
         self.model = VisionEncoderDecoderModel.from_pretrained(model_dir).to(self.device)
         self.model.eval()
 

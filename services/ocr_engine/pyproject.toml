@@ -10,11 +10,14 @@ dependencies = ["numpy>=1.26", "pillow>=10.0"]
 # API container (which degrades to a stub when these aren't installed).
 train = [
     "torch>=2.2",
-    "transformers>=4.44",
+    # <5 on purpose: v5 reworked tokenizer loading and breaks TrOCR processor loading.
+    "transformers>=4.44,<5",
     "datasets>=2.20",
     "jiwer>=3.0",          # CER / WER metrics
     "accelerate>=0.33",
+    # both are needed to build TrOCR's fast tokenizer from the slow one
     "sentencepiece>=0.2",
+    "protobuf",
 ]
 dev = ["pytest>=8", "ruff>=0.6"]
 
