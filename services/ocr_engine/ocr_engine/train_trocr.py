@@ -55,9 +55,19 @@ def load_processor(model_dir: str):
 
     try:
         return TrOCRProcessor.from_pretrained(model_dir)
-    except Exception as exc:  # noqa: BLE001 - any conversion failure -> slow tokenizer
-        print(f"[warn] fast tokenizer unavailable ({exc}); falling back to use_fast=False")
+    except Exception as exc:  # noqa: BLE001 - any conversion failure -> try slow tokenizer
+        print(f"[warn] fast tokenizer unavailable ({exc}); retrying with use_fast=False")
+
+    try:
         return TrOCRProcessor.from_pretrained(model_dir, use_fast=False)
+    except Exception as exc:  # noqa: BLE001
+        # TrOCR's tokenizer is sentencepiece-based, so the slow path needs it too.
+        raise RuntimeError(
+            f"Could not load the TrOCR tokenizer for {model_dir!r}: {exc}\n"
+            "This almost always means sentencepiece/protobuf are missing. Run:\n"
+            "    pip install sentencepiece protobuf\n"
+            "then restart the runtime (Colab: Runtime -> Restart session) and re-run."
+        ) from exc
 
 
 def _build_torch_dataset(samples, processor, max_target_length: int):
