@@ -27,6 +27,8 @@ jobs:
   packages:
     runs-on: ubuntu-latest
     strategy:
+      # one failing package shouldn't cancel the others - we want the full picture
+      fail-fast: false
       matrix:
         pkg: [medical_parser, data_synthesis, llm_service, rag, ocr_engine]
     defaults:

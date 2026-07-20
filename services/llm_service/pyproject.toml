@@ -16,6 +16,11 @@ finetune = [
 ]
 dev = ["pytest>=8", "ruff>=0.6"]
 
+# Explicit package discovery: setuptools' flat-layout auto-discovery ignores tests/ but
+# treats notebooks/ as a second top-level package and refuses to build. Pin it here.
+[tool.setuptools.packages.find]
+include = ["llm_service*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
