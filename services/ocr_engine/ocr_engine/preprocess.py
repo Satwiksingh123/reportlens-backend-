@@ -12,15 +12,22 @@ never sees a distribution it wasn't trained on.
 from PIL import Image
 
 
-def pad_to_aspect(image: Image.Image, max_aspect: float = 6.0, fill=(255, 255, 255)) -> Image.Image:
-    """Pad the shorter side so width/height <= max_aspect, keeping the text centred."""
+def letterbox_square(image: Image.Image, size: int = 384, fill=(255, 255, 255)) -> Image.Image:
+    """Resize a crop into a centred square, preserving aspect ratio (letterboxing).
+
+    TrOCR's processor resizes every input to a 384x384 square with a plain (non
+    aspect-preserving) resize, so a wide word crop gets stretched vertically and the glyphs
+    distort. Pre-fitting the crop into a square with white padding means that resize becomes
+    a no-op and the text keeps its true shape. Applied identically in training and
+    inference so the model never sees a distribution it wasn't trained on.
+    """
     img = image.convert("RGB")
     w, h = img.size
     if w == 0 or h == 0:
-        return img
-    if w / h <= max_aspect:
-        return img
-    target_h = int(round(w / max_aspect))
-    canvas = Image.new("RGB", (w, target_h), fill)
-    canvas.paste(img, (0, (target_h - h) // 2))
+        return Image.new("RGB", (size, size), fill)
+    scale = size / max(w, h)
+    nw, nh = max(1, round(w * scale)), max(1, round(h * scale))
+    resized = img.resize((nw, nh), Image.BILINEAR)
+    canvas = Image.new("RGB", (size, size), fill)
+    canvas.paste(resized, ((size - nw) // 2, (size - nh) // 2))
     return canvas

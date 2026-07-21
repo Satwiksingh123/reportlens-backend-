@@ -36,7 +36,7 @@ class TrOCRRecognizer:  # pragma: no cover - requires the optional train extra +
     """Fine-tuned (or base) TrOCR recognition. Loads lazily so importing ocr_engine stays
     cheap and the API can fall back when torch/weights are absent."""
 
-    def __init__(self, model_dir: str = "microsoft/trocr-small-printed", device: str | None = None):
+    def __init__(self, model_dir: str = "microsoft/trocr-base-printed", device: str | None = None):
         # Checked before importing torch: a path-like model_dir that doesn't exist would
         # otherwise be treated as a Hub repo id and fail with a confusing HTTP 401/404.
         if ("/" in model_dir or "\\" in model_dir) and not Path(model_dir).exists():
@@ -63,9 +63,9 @@ class TrOCRRecognizer:  # pragma: no cover - requires the optional train extra +
     def recognize_batch(self, images: list[Image.Image]) -> list[str]:
         if not images:
             return []
-        from ocr_engine.preprocess import pad_to_aspect
+        from ocr_engine.preprocess import letterbox_square
 
-        rgb = [pad_to_aspect(im) for im in images]
+        rgb = [letterbox_square(im) for im in images]
         pixel_values = self.processor(images=rgb, return_tensors="pt").pixel_values.to(self.device)
         with self._torch.no_grad():
             generated = self.model.generate(
