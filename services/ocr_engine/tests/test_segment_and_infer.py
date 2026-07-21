@@ -40,6 +40,36 @@ def test_segment_ignores_blank_page():
     assert segment_lines(Image.new("RGB", (200, 200), "white")) == []
 
 
+def test_segment_ignores_speckle_and_keeps_crops_tight():
+    """Scattered speckle must not stretch a line crop to full page width (that crushes the
+    text when TrOCR resizes to a square)."""
+    import random
+
+    from ocr_engine.segment import segment_lines as seg
+
+    img = _make_page(["Hemoglobin 11.2"])
+    px = img.load()
+    w, h = img.size
+    rng = random.Random(0)
+    for _ in range(int(w * h * 0.001)):  # light grey dust across the whole page
+        px[rng.randint(0, w - 1), rng.randint(0, h - 1)] = (150, 150, 150)
+    lines = seg(img)
+    assert len(lines) == 1
+    # the crop must be far narrower than the page (text only), not full width
+    assert lines[0].image.width < 0.6 * w
+
+
+def test_pad_to_aspect_caps_ratio():
+    from ocr_engine.preprocess import pad_to_aspect
+
+    wide = Image.new("RGB", (600, 20), "white")  # aspect 30
+    out = pad_to_aspect(wide, max_aspect=6.0)
+    assert out.width / out.height <= 6.01
+    # a already-square-ish crop is left alone
+    ok = Image.new("RGB", (60, 20), "white")  # aspect 3
+    assert pad_to_aspect(ok, max_aspect=6.0).size == (60, 20)
+
+
 def test_extract_text_assembles_one_line_per_band():
     img = _make_page(["Alpha", "Beta", "Gamma"])
     text = extract_text_from_pil(img, StubRecognizer(token="X"))

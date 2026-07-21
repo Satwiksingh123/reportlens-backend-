@@ -207,11 +207,13 @@ def _apply_scan_noise(img, rng, Image, ImageFilter):
     img = img.rotate(angle, expand=False, fillcolor="white")
     if rng.random() < 0.5:
         img = img.filter(ImageFilter.GaussianBlur(radius=rng.uniform(0.3, 0.8)))
-    # speckle
+    # Speckle: light grey dust, kept lighter than typical OCR ink thresholds and sparse, so
+    # it reads as realistic scan noise without masquerading as text and inflating line
+    # bounding boxes to full page width.
     px = img.load()
     w, h = img.size
-    for _ in range(int(w * h * 0.002)):
+    for _ in range(int(w * h * 0.0008)):
         x, y = rng.randint(0, w - 1), rng.randint(0, h - 1)
-        shade = rng.randint(120, 200)
+        shade = rng.randint(170, 215)
         px[x, y] = (shade, shade, shade)
     return img

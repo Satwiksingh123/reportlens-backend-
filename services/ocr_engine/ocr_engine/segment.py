@@ -55,10 +55,14 @@ def segment_lines(
     for y0, y1 in bands:
         if (y1 - y0) < min_line_height:
             continue
-        # trim horizontal extent to the ink in this band
+        # Trim horizontal extent to the real text ink. A column must have ink over a
+        # minimum share of the band height to count - a lone speckle dot (1-2px) does not.
+        # Without this, scan speckle scattered across the page stretches every crop to full
+        # width, and TrOCR's square resize then crushes the text into an unreadable smear.
         band_ink = ink[y0:y1]
         col_ink = band_ink.sum(axis=0)
-        cols = np.where(col_ink > 0)[0]
+        col_thresh = max(2, int(0.2 * (y1 - y0)))
+        cols = np.where(col_ink >= col_thresh)[0]
         if cols.size == 0:
             continue
         x0, x1 = int(cols[0]), int(cols[-1]) + 1

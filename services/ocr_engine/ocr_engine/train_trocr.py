@@ -81,9 +81,11 @@ def _build_torch_dataset(samples, processor, max_target_length: int):
             return len(self.items)
 
         def __getitem__(self, idx):
+            from ocr_engine.preprocess import pad_to_aspect
+
             s = self.items[idx]
             pixel_values = processor(
-                images=s.image.convert("RGB"), return_tensors="pt"
+                images=pad_to_aspect(s.image), return_tensors="pt"
             ).pixel_values.squeeze(0)
             labels = processor.tokenizer(
                 s.text,
