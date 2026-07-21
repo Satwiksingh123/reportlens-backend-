@@ -81,11 +81,11 @@ def _build_torch_dataset(samples, processor, max_target_length: int):
             return len(self.items)
 
         def __getitem__(self, idx):
-            from ocr_engine.preprocess import pad_to_aspect
+            from ocr_engine.preprocess import letterbox_square
 
             s = self.items[idx]
             pixel_values = processor(
-                images=pad_to_aspect(s.image), return_tensors="pt"
+                images=letterbox_square(s.image), return_tensors="pt"
             ).pixel_values.squeeze(0)
             labels = processor.tokenizer(
                 s.text,
@@ -105,7 +105,7 @@ def main() -> None:
     ap.add_argument("--epochs", type=float, default=3.0)
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--lr", type=float, default=5e-5)
-    ap.add_argument("--base-model", type=str, default="microsoft/trocr-small-printed")
+    ap.add_argument("--base-model", type=str, default="microsoft/trocr-base-printed")
     ap.add_argument("--data-dir", type=str, default="ocr_engine/artifacts/synthetic")
     ap.add_argument("--out", type=str, default="ocr_engine/artifacts/trocr-lab")
     ap.add_argument("--max-target-length", type=int, default=32)  # words are short

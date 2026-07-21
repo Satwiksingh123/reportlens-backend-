@@ -73,15 +73,14 @@ def test_segment_ignores_speckle_and_keeps_crops_tight():
     assert lines[0].image.width < 0.6 * w
 
 
-def test_pad_to_aspect_caps_ratio():
-    from ocr_engine.preprocess import pad_to_aspect
+def test_letterbox_square_preserves_aspect():
+    from ocr_engine.preprocess import letterbox_square
 
-    wide = Image.new("RGB", (600, 20), "white")  # aspect 30
-    out = pad_to_aspect(wide, max_aspect=6.0)
-    assert out.width / out.height <= 6.01
-    # a already-square-ish crop is left alone
-    ok = Image.new("RGB", (60, 20), "white")  # aspect 3
-    assert pad_to_aspect(ok, max_aspect=6.0).size == (60, 20)
+    wide = Image.new("RGB", (600, 20), "white")  # very wide word
+    out = letterbox_square(wide, size=384)
+    assert out.size == (384, 384)  # square, so TrOCR's resize doesn't distort
+    # empty crop degrades to a blank square rather than crashing
+    assert letterbox_square(Image.new("RGB", (0, 0)), size=128).size == (128, 128)
 
 
 def test_split_into_words_splits_on_column_gaps():
