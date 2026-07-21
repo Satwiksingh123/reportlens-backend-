@@ -166,7 +166,10 @@ def _build_text_lines(report: SyntheticReport) -> list[str]:
 def render_report(report: SyntheticReport, add_noise: bool = True, seed: int | None = None):
     """Render the report to a PIL image plus per-line bounding boxes.
 
-    Returns (PIL.Image, list[dict]) where each dict is {"text", "box": (x0,y0,x1,y1)}.
+    Returns (PIL.Image, list[dict]) where each dict is
+    {"text", "box": (x0,y0,x1,y1), "words": [{"text", "box"}, ...]}.
+    The per-word boxes let the OCR trainer crop individual words (kept near-square, which
+    is TrOCR's sweet spot) instead of squashing a whole wide line into a 384x384 square.
     """
     # lazy import keeps PIL cost off code paths that only need text/ground truth
     from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -192,13 +195,42 @@ def render_report(report: SyntheticReport, add_noise: bool = True, seed: int | N
         if i < 2:
             draw.text((x0 + 1, y), line, fill="black", font=font)
         bbox = draw.textbbox((x0, y), line, font=font)
-        boxes.append({"text": line, "box": bbox})
+        boxes.append(
+            {
+                "text": line,
+                "box": bbox,
+                "words": _word_boxes(draw, line, x0, bbox[1], bbox[3], font),
+            }
+        )
         y += 26
 
     if add_noise:
         img = _apply_scan_noise(img, rng, Image, ImageFilter)
 
     return img, boxes
+
+
+def _word_boxes(draw, line: str, x0: int, y_top: int, y_bot: int, font) -> list[dict]:
+    """Per-word boxes for a rendered line, using font metrics to locate each word.
+
+    A "word" is a maximal run of non-space characters. x extents come from the pixel width
+    of the substring before/through the word, so it works for any font.
+    """
+    words: list[dict] = []
+    idx = 0
+    n = len(line)
+    while idx < n:
+        if line[idx] == " ":
+            idx += 1
+            continue
+        start = idx
+        while idx < n and line[idx] != " ":
+            idx += 1
+        word = line[start:idx]
+        wx0 = x0 + int(draw.textlength(line[:start], font=font))
+        wx1 = x0 + int(draw.textlength(line[:idx], font=font))
+        words.append({"text": word, "box": [wx0, y_top, wx1, y_bot]})
+    return words
 
 
 def _apply_scan_noise(img, rng, Image, ImageFilter):

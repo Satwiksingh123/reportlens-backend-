@@ -108,7 +108,7 @@ def main() -> None:
     ap.add_argument("--base-model", type=str, default="microsoft/trocr-small-printed")
     ap.add_argument("--data-dir", type=str, default="ocr_engine/artifacts/synthetic")
     ap.add_argument("--out", type=str, default="ocr_engine/artifacts/trocr-lab")
-    ap.add_argument("--max-target-length", type=int, default=64)
+    ap.add_argument("--max-target-length", type=int, default=32)  # words are short
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
@@ -126,15 +126,15 @@ def main() -> None:
     transformers.logging.set_verbosity_warning()
     transformers.utils.logging.disable_progress_bar()
 
-    from ocr_engine.dataset import build_line_samples, train_val_split
+    from ocr_engine.dataset import build_word_samples, train_val_split
 
     data_dir = Path(args.data_dir)
     _generate_dataset(args.num_reports, data_dir, args.seed)
 
-    print("[data] cropping labelled lines ...")
-    samples = build_line_samples(data_dir)
+    print("[data] cropping labelled words ...")
+    samples = build_word_samples(data_dir)
     train_s, val_s = train_val_split(samples, val_ratio=0.1, seed=args.seed)
-    print(f"[data] {len(train_s)} train / {len(val_s)} val line images")
+    print(f"[data] {len(train_s)} train / {len(val_s)} val word images")
 
     processor = load_processor(args.base_model)
     model = VisionEncoderDecoderModel.from_pretrained(args.base_model)
@@ -155,6 +155,8 @@ def main() -> None:
     model.generation_config.decoder_start_token_id = processor.tokenizer.cls_token_id
     model.generation_config.eos_token_id = processor.tokenizer.sep_token_id
     model.generation_config.pad_token_id = processor.tokenizer.pad_token_id
+    # Stop the decoder looping ("8.38.38.3...") that inflates CER.
+    model.generation_config.no_repeat_ngram_size = 3
 
     train_ds = _build_torch_dataset(train_s, processor, args.max_target_length)
     val_ds = _build_torch_dataset(val_s, processor, args.max_target_length)

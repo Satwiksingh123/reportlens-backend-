@@ -10,21 +10,35 @@ import json
 from PIL import Image, ImageDraw
 
 from ocr_engine import StubRecognizer, extract_text_from_image, segment_lines
-from ocr_engine.dataset import build_line_samples, train_val_split
+from ocr_engine.dataset import build_line_samples, build_word_samples, train_val_split
 from ocr_engine.infer import extract_text_from_pil
+from ocr_engine.segment import split_into_words
 
 
-def _make_page(lines: list[str], line_height: int = 16, scale: int = 4) -> Image.Image:
-    """Render lines with the (tiny) default PIL font, then upscale so strokes are thick
-    and lines are tall — mimicking real report-scan text density, which the default
-    bitmap font is too thin to produce on its own."""
-    base = Image.new("RGB", (150, 16 + line_height * len(lines)), "white")
-    draw = ImageDraw.Draw(base)
-    y = 8
+def _font(size: int):
+    """A real TrueType font so word/letter spacing is realistic. DejaVu ships on Linux CI;
+    Arial on Windows. Falls back to the (thin) default only if neither is present."""
+    from PIL import ImageFont
+
+    for name in ("DejaVuSans.ttf", "Arial.ttf", "arial.ttf"):
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _make_page(lines: list[str], line_height: int = 40) -> Image.Image:
+    """Render lines with a real 22px font and generous line spacing, approximating a
+    scanned report closely enough to exercise line + word segmentation."""
+    font = _font(22)
+    img = Image.new("RGB", (700, 30 + line_height * len(lines)), "white")
+    draw = ImageDraw.Draw(img)
+    y = 15
     for text in lines:
-        draw.text((8, y), text, fill="black")
+        draw.text((15, y), text, fill="black", font=font)
         y += line_height
-    return base.resize((base.width * scale, base.height * scale), Image.NEAREST)
+    return img
 
 
 def test_segment_finds_expected_line_count():
@@ -70,10 +84,42 @@ def test_pad_to_aspect_caps_ratio():
     assert pad_to_aspect(ok, max_aspect=6.0).size == (60, 20)
 
 
+def test_split_into_words_splits_on_column_gaps():
+    # report rows are column-aligned with wide gaps between fields
+    img = _make_page(["Hemoglobin      11.2      gdL"])
+    line = segment_lines(img)[0]
+    words = split_into_words(line.image)
+    assert len(words) == 3  # three columns
+
+
 def test_extract_text_assembles_one_line_per_band():
     img = _make_page(["Alpha", "Beta", "Gamma"])
     text = extract_text_from_pil(img, StubRecognizer(token="X"))
     assert text.split("\n") == ["X", "X", "X"]
+
+
+def test_extract_joins_words_within_a_line():
+    # two columns -> two recognised crops joined by a space
+    img = _make_page(["Sodium        141"])
+    text = extract_text_from_pil(img, StubRecognizer(token="W"))
+    assert text == "W W"
+
+
+def test_build_word_samples_crops_each_word(tmp_path):
+    img = _make_page(["TSH 3.1"])
+    img.save(tmp_path / "000000.png")
+    boxes = [{
+        "text": "TSH 3.1",
+        "box": [20, 15, 200, 40],
+        "words": [
+            {"text": "TSH", "box": [20, 15, 60, 40]},
+            {"text": "3.1", "box": [90, 15, 130, 40]},
+        ],
+    }]
+    (tmp_path / "000000.ocr.json").write_text(json.dumps(boxes))
+    samples = build_word_samples(tmp_path)
+    assert [s.text for s in samples] == ["TSH", "3.1"]
+    assert all(s.image.width > 0 for s in samples)
 
 
 def test_extract_from_image_path(tmp_path):

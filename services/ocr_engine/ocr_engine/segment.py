@@ -77,6 +77,52 @@ def segment_lines(
     return lines
 
 
+def split_into_words(
+    line_image: Image.Image,
+    ink_threshold: int = 160,
+    min_gap: int | None = None,
+    pad: int = 2,
+) -> list[Image.Image]:
+    """Split a single line crop into word images by gaps in the vertical ink profile.
+
+    Blank-column runs wider than `min_gap` are treated as spaces between words. `min_gap`
+    defaults to a fraction of the line height, since a space scales with the font size -
+    this keeps within-word letter gaps from over-splitting while still separating words.
+    Recognising word-sized crops (near-square) avoids the extreme horizontal squashing a
+    whole line suffers when resized to TrOCR's 384x384 input.
+    """
+    gray = np.asarray(line_image.convert("L"))
+    h, w = gray.shape
+    if min_gap is None:
+        # Only split clearly inter-column gaps. A single in-word space stays joined, which
+        # is fine: those crops (e.g. "Bilirubin Total") are already short enough for TrOCR.
+        min_gap = max(6, int(0.6 * h))
+    ink_cols = (gray < ink_threshold).sum(axis=0) > 0
+
+    words: list[Image.Image] = []
+    start = None
+    gap = 0
+    for x in range(w):
+        if ink_cols[x]:
+            if start is None:
+                start = x
+            gap = 0
+        else:
+            if start is not None:
+                gap += 1
+                if gap >= min_gap:
+                    end = x - gap + 1
+                    words.append(_crop_word(line_image, start, end, pad, w, h))
+                    start = None
+    if start is not None:
+        words.append(_crop_word(line_image, start, w, pad, w, h))
+    return words
+
+
+def _crop_word(img: Image.Image, x0: int, x1: int, pad: int, w: int, h: int) -> Image.Image:
+    return img.crop((max(0, x0 - pad), 0, min(w, x1 + pad), h))
+
+
 def _rows_to_bands(is_text_row: np.ndarray, merge_gap: int) -> list[tuple[int, int]]:
     """Convert a boolean per-row text mask into (start, end) bands, merging small gaps."""
     bands: list[tuple[int, int]] = []
