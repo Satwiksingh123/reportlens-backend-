@@ -52,6 +52,40 @@ def build_line_samples(data_dir: str | Path, pad: int = 2) -> list[LineSample]:
     return samples
 
 
+def build_word_samples(data_dir: str | Path, pad: int = 3) -> list[LineSample]:
+    """Crop every labelled *word* into an (image, text) pair.
+
+    Word crops stay near-square, which is TrOCR's sweet spot, so the recogniser learns far
+    better than on whole lines squashed into a 384x384 square. Falls back to a line crop
+    when a report predates per-word boxes.
+    """
+    data_dir = Path(data_dir)
+    samples: list[LineSample] = []
+    for _stem, png, ocr_json in _iter_sample_ids(data_dir):
+        page = Image.open(png).convert("RGB")
+        w, h = page.size
+        lines = json.loads(ocr_json.read_text())
+        for line in lines:
+            words = line.get("words")
+            if not words:  # backward compat: no per-word boxes -> use the line
+                text = " ".join((line.get("text") or "").split())
+                if text:
+                    x0, y0, x1, y1 = line["box"]
+                    samples.append(LineSample(_crop(page, x0, y0, x1, y1, pad, w, h), text))
+                continue
+            for word in words:
+                text = (word.get("text") or "").strip()
+                if not text:
+                    continue
+                x0, y0, x1, y1 = word["box"]
+                samples.append(LineSample(_crop(page, x0, y0, x1, y1, pad, w, h), text))
+    return samples
+
+
+def _crop(page, x0, y0, x1, y1, pad, w, h):
+    return page.crop((max(0, x0 - pad), max(0, y0 - pad), min(w, x1 + pad), min(h, y1 + pad)))
+
+
 def train_val_split(
     samples: list[LineSample], val_ratio: float = 0.1, seed: int = 0
 ) -> tuple[list[LineSample], list[LineSample]]:

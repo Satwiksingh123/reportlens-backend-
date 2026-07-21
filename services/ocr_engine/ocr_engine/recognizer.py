@@ -68,5 +68,7 @@ class TrOCRRecognizer:  # pragma: no cover - requires the optional train extra +
         rgb = [pad_to_aspect(im) for im in images]
         pixel_values = self.processor(images=rgb, return_tensors="pt").pixel_values.to(self.device)
         with self._torch.no_grad():
-            generated = self.model.generate(pixel_values, max_new_tokens=64)
+            generated = self.model.generate(
+                pixel_values, max_new_tokens=32, num_beams=4, no_repeat_ngram_size=3
+            )
         return [t.strip() for t in self.processor.batch_decode(generated, skip_special_tokens=True)]
