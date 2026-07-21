@@ -63,7 +63,9 @@ class TrOCRRecognizer:  # pragma: no cover - requires the optional train extra +
     def recognize_batch(self, images: list[Image.Image]) -> list[str]:
         if not images:
             return []
-        rgb = [im.convert("RGB") for im in images]
+        from ocr_engine.preprocess import pad_to_aspect
+
+        rgb = [pad_to_aspect(im) for im in images]
         pixel_values = self.processor(images=rgb, return_tensors="pt").pixel_values.to(self.device)
         with self._torch.no_grad():
             generated = self.model.generate(pixel_values, max_new_tokens=64)
