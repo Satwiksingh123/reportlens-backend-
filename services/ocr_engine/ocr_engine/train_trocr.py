@@ -113,12 +113,18 @@ def main() -> None:
     args = ap.parse_args()
 
     import numpy as np
+    import transformers
     from transformers import (
         Seq2SeqTrainer,
         Seq2SeqTrainingArguments,
         VisionEncoderDecoderModel,
         default_data_collator,
     )
+
+    # Quieten the library: only warnings, and no download/progress bars - keeps the Colab
+    # notebook light so the browser tab doesn't lag.
+    transformers.logging.set_verbosity_warning()
+    transformers.utils.logging.disable_progress_bar()
 
     from ocr_engine.dataset import build_line_samples, train_val_split
 
@@ -175,7 +181,10 @@ def main() -> None:
         learning_rate=args.lr,
         fp16=True,
         output_dir=args.out,
-        logging_steps=25,
+        # Keep console output small: thousands of tqdm progress lines bloat the Colab
+        # notebook DOM and make the whole browser tab lag.
+        logging_steps=100,
+        disable_tqdm=True,
         save_total_limit=1,
         report_to=[],
     )
