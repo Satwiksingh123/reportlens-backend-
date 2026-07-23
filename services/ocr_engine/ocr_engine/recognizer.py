@@ -69,6 +69,11 @@ class TrOCRRecognizer:  # pragma: no cover - requires the optional train extra +
         pixel_values = self.processor(images=rgb, return_tensors="pt").pixel_values.to(self.device)
         with self._torch.no_grad():
             generated = self.model.generate(
-                pixel_values, max_new_tokens=32, num_beams=4, no_repeat_ngram_size=3
+                pixel_values,
+                max_new_tokens=32,
+                num_beams=4,
+                no_repeat_ngram_size=3,
+                length_penalty=1.4,  # counteract beam search's short-output bias
+                early_stopping=False,
             )
         return [t.strip() for t in self.processor.batch_decode(generated, skip_special_tokens=True)]

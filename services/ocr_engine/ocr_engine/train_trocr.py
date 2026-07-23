@@ -157,6 +157,11 @@ def main() -> None:
     model.generation_config.pad_token_id = processor.tokenizer.pad_token_id
     # Stop the decoder looping ("8.38.38.3...") that inflates CER.
     model.generation_config.no_repeat_ngram_size = 3
+    # Beam search's default length normalization favours shorter sequences, which shows up
+    # as systematic truncation ("0.3" -> "0.", "Bilirubin Total" -> "Bir") - every output
+    # cut short rather than garbled. length_penalty > 1 counteracts that bias.
+    model.generation_config.length_penalty = 1.4
+    model.generation_config.early_stopping = False
 
     train_ds = _build_torch_dataset(train_s, processor, args.max_target_length)
     val_ds = _build_torch_dataset(val_s, processor, args.max_target_length)
