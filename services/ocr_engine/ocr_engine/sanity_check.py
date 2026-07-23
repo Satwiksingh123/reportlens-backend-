@@ -42,6 +42,21 @@ def main() -> None:
             print(line)
 
     recognizer = TrOCRRecognizer(model_dir=args.model_dir)
+
+    # Self-diagnosing: prints exactly what decoding settings are active, so a stale
+    # checkout (old code still on disk) is obvious from this output alone instead of
+    # needing a separate round-trip to confirm.
+    import inspect
+
+    src = inspect.getsource(recognizer.recognize_batch)
+    print("\n=== active generate() kwargs (from installed ocr_engine on disk) ===")
+    for line in src.splitlines():
+        if "length_penalty" in line or "early_stopping" in line or "no_repeat" in line:
+            print(" ", line.strip())
+    if "length_penalty" not in src:
+        print("  !! length_penalty NOT found - this is a STALE checkout, re-run the clone "
+              "cell (cell 2) to pull the latest fix, then re-run this cell.")
+
     print("\n=== OCR output ===")
     print(extract_text_from_pil(img, recognizer))
 
