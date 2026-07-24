@@ -63,16 +63,12 @@ class TrOCRRecognizer:  # pragma: no cover - requires the optional train extra +
     def recognize_batch(self, images: list[Image.Image]) -> list[str]:
         if not images:
             return []
-        from ocr_engine.preprocess import letterbox_square
-
-        # NOTE: an earlier attempt forced a minimum output length (min_new_tokens,
-        # estimated from crop width) to stop the model cutting words short. It backfired:
-        # once forced past its own natural stopping point, the model - combined with
-        # no_repeat_ngram_size blocking exact repeats - degenerated into inventing extra
-        # digits/characters ("0.3" -> "0.335333633133833G") rather than stopping cleanly.
-        # Removed. The real remaining lever is training quality (more epochs/data), not a
-        # decoding-time hack.
-        rgb = [letterbox_square(im) for im in images]
+        # Feed crops straight to the processor (plain resize to 384x384), matching TrOCR's
+        # pretraining: word crops are aspect ~1-6, milder than the receipt lines TrOCR was
+        # trained on, and this fills the frame with large glyphs. (An earlier letterbox
+        # shrank wide words to tiny centred text; an earlier min_new_tokens floor made the
+        # model invent trailing garbage - both removed.)
+        rgb = [im.convert("RGB") for im in images]
         pixel_values = self.processor(images=rgb, return_tensors="pt").pixel_values.to(self.device)
         with self._torch.no_grad():
             generated = self.model.generate(

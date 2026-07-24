@@ -81,11 +81,11 @@ def _build_torch_dataset(samples, processor, max_target_length: int):
             return len(self.items)
 
         def __getitem__(self, idx):
-            from ocr_engine.preprocess import letterbox_square
-
             s = self.items[idx]
+            # plain processor resize (see TrOCRRecognizer.recognize_batch) - identical
+            # preprocessing at train and inference time.
             pixel_values = processor(
-                images=letterbox_square(s.image), return_tensors="pt"
+                images=s.image.convert("RGB"), return_tensors="pt"
             ).pixel_values.squeeze(0)
             labels = processor.tokenizer(
                 s.text,

@@ -73,16 +73,6 @@ def test_segment_ignores_speckle_and_keeps_crops_tight():
     assert lines[0].image.width < 0.6 * w
 
 
-def test_letterbox_square_preserves_aspect():
-    from ocr_engine.preprocess import letterbox_square
-
-    wide = Image.new("RGB", (600, 20), "white")  # very wide word
-    out = letterbox_square(wide, size=384)
-    assert out.size == (384, 384)  # square, so TrOCR's resize doesn't distort
-    # empty crop degrades to a blank square rather than crashing
-    assert letterbox_square(Image.new("RGB", (0, 0)), size=128).size == (128, 128)
-
-
 def test_split_into_words_splits_on_column_gaps():
     # report rows are column-aligned with wide gaps between fields
     img = _make_page(["Hemoglobin      11.2      gdL"])

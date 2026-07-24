@@ -172,28 +172,22 @@ def render_report(report: SyntheticReport, add_noise: bool = True, seed: int | N
     is TrOCR's sweet spot) instead of squashing a whole wide line into a 384x384 square.
     """
     # lazy import keeps PIL cost off code paths that only need text/ground truth
-    from PIL import Image, ImageDraw, ImageFilter, ImageFont
+    from PIL import Image, ImageDraw, ImageFilter
 
     rng = random.Random(seed)
-    width, height = 1000, 120 + 26 * len(report.text_lines)
+    font = _load_font(FONT_SIZE)
+    width, height = 1400, 80 + LINE_STEP * len(report.text_lines)
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
 
-    try:
-        font = ImageFont.truetype("DejaVuSansMono.ttf", 16)
-    except OSError:
-        font = ImageFont.load_default()
-
     boxes = []
     x0, y = 40, 40
-    for i, line in enumerate(report.text_lines):
+    for line in report.text_lines:
         if not line:
-            y += 26
+            y += LINE_STEP
             continue
-        # header emphasis via a heavier draw (double-strike) for the first two lines
+        # single clean draw (no double-strike: overprinting blurs the glyphs and hurts OCR)
         draw.text((x0, y), line, fill="black", font=font)
-        if i < 2:
-            draw.text((x0 + 1, y), line, fill="black", font=font)
         bbox = draw.textbbox((x0, y), line, font=font)
         boxes.append(
             {
@@ -202,12 +196,40 @@ def render_report(report: SyntheticReport, add_noise: bool = True, seed: int | N
                 "words": _word_boxes(draw, line, x0, bbox[1], bbox[3], font),
             }
         )
-        y += 26
+        y += LINE_STEP
 
     if add_noise:
         img = _apply_scan_noise(img, rng, Image, ImageFilter)
 
     return img, boxes
+
+
+FONT_SIZE = 26
+LINE_STEP = 42
+
+# A larger, crisp monospace font renders clearer glyphs (more pixels per character), which
+# is the single biggest lever on downstream OCR accuracy. Try common locations across
+# Colab/Linux (DejaVu) and Windows (Consolas/Arial) before the tiny bitmap fallback.
+_FONT_CANDIDATES = (
+    "DejaVuSansMono.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    "DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "consola.ttf",
+    "Arial.ttf",
+    "arial.ttf",
+)
+
+
+def _load_font(size: int):
+    from PIL import ImageFont
+
+    for name in _FONT_CANDIDATES:
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
 
 
 def _word_boxes(draw, line: str, x0: int, y_top: int, y_bot: int, font) -> list[dict]:
