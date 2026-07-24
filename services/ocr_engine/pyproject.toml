@@ -6,8 +6,11 @@ requires-python = ">=3.11"
 dependencies = ["numpy>=1.26", "pillow>=10.0"]
 
 [project.optional-dependencies]
-# Heavy training/inference stack. Optional so the package stays light for CI and for the
-# API container (which degrades to a stub when these aren't installed).
+# Default production recogniser. Needs the system `tesseract` binary too (pre-installed on
+# Colab; `apt-get install tesseract-ocr` on Debian/Ubuntu hosts).
+ocr = ["pytesseract>=0.3.10"]
+# Heavy training/inference stack for the optional fine-tuned TrOCR path. Kept separate so
+# the package stays light for CI and the API container.
 train = [
     "torch>=2.2",
     # <5 on purpose: v5 reworked tokenizer loading and breaks TrOCR processor loading.

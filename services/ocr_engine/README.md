@@ -3,58 +3,48 @@
 A custom OCR pipeline for lab reports, in two halves:
 
 ```
-page image ──▶ line segmentation (classical CV) ──▶ line crops ──▶ TrOCR recogniser ──▶ text
-                 no GPU, deterministic                              fine-tuned on Colab
+page image ──▶ line segmentation (classical CV) ──▶ line crops ──▶ recogniser ──▶ text
+                 no GPU, deterministic                              Tesseract (default)
 ```
 
 - **Segmentation** (`segment.py`) — horizontal projection profiles find text bands and
   crop each line. Pure numpy/PIL, no training, runs anywhere.
-- **Recognition** (`recognizer.py`) — `TrOCRRecognizer` wraps a fine-tuned
-  `microsoft/trocr-small-printed`. `StubRecognizer` stands in for tests/offline.
-- **Assembly** (`infer.py`) — `extract_text_from_image(path, recognizer)` ties them
-  together; this is what the API calls.
-- **Training** (`train_trocr.py`, `dataset.py`) — generate synthetic reports, crop
-  labelled lines, fine-tune TrOCR, report CER.
+- **Recognition** (`recognizer.py`):
+  - `TesseractRecognizer` — **the default.** A mature, CPU-only OCR that is highly
+    accurate on clean printed text like lab reports. No GPU, no training.
+  - `TrOCRRecognizer` — an optional fine-tuned transformer path, kept as a from-scratch
+    ML artifact (see the training notebook), not the default engine.
+  - `StubRecognizer` — deterministic, for tests/offline.
+- **Assembly** (`infer.py`) — `extract_text_from_image(path, recognizer)` segments a page
+  into lines and recognises each; this is what the API calls.
 
-## Train the recogniser (Google Colab, free GPU)
+## Run the demo (no GPU)
 
-You cannot train this on a laptop without an NVIDIA GPU — use the notebook.
-
-1. Open [`notebooks/train_ocr_colab.ipynb`](notebooks/train_ocr_colab.ipynb) in Google
-   Colab (upload it, or in Colab: *File → Open notebook → GitHub → paste the repo URL*).
-2. *Runtime → Change runtime type → T4 GPU → Save.*
-3. *Runtime → Run all.* That's it — the notebook clones the repo, installs deps,
-   generates 800 synthetic reports, fine-tunes TrOCR (~15–30 min), prints the **CER**,
-   and downloads `trocr-lab.zip`.
-
-No coding required — just run the cells. Tune `--num-reports` / `--epochs` in the train
-cell for a stronger model.
-
-## Use the fine-tuned model locally (inference, CPU is fine)
+Open [`notebooks/ocr_demo_colab.ipynb`](notebooks/ocr_demo_colab.ipynb) in Colab and
+*Run all* (about a minute) — it runs the Tesseract pipeline on synthetic reports and prints
+the character accuracy. Or locally:
 
 ```bash
-pip install -e "services/ocr_engine[train]"   # torch + transformers for inference
-# unzip the model you trained, e.g. to services/ocr_engine/artifacts/trocr-lab
-```
-```python
-from ocr_engine.recognizer import TrOCRRecognizer
-from ocr_engine.infer import extract_text_from_image
-
-rec = TrOCRRecognizer(model_dir="artifacts/trocr-lab")
-print(extract_text_from_image("some_report.png", rec))
+# needs the tesseract binary:  apt-get install tesseract-ocr   (macOS: brew install tesseract)
+pip install -e "services/ocr_engine[ocr]"
+python -m ocr_engine.sanity_check            # Tesseract, prints ground truth vs OCR + CER
 ```
 
-The API's `ocr_client` loads this automatically when `OCR_MODEL_DIR` points at a trained
-model; otherwise it falls back to a deterministic stub so the pipeline still runs.
+## Optional: fine-tune a TrOCR recogniser (Colab GPU)
+
+[`notebooks/train_ocr_colab.ipynb`](notebooks/train_ocr_colab.ipynb) is a self-contained
+demonstration of a from-scratch fine-tuning pipeline: generate synthetic reports, crop
+labelled column fields, fine-tune `microsoft/trocr-base-printed`, and evaluate with CER.
+It is portfolio evidence of the ML workflow — the product itself runs on Tesseract.
+
+```bash
+python -m ocr_engine.sanity_check --engine trocr --model-dir artifacts/trocr-lab
+```
 
 ## Develop (no GPU)
 
 ```bash
-pip install -e ".[dev]"     # light: numpy + pillow only
+pip install -e ".[dev]"      # light: numpy + pillow only
 ruff check .
-pytest -q                    # segmentation + assembly, via StubRecognizer
+pytest -q                     # segmentation + assembly (Tesseract test skips if not installed)
 ```
-
-> The synthetic fonts/layout are consistent, so CER on synthetic data goes very low —
-> that is expected. The portfolio value is the end-to-end custom pipeline (synthetic data
-> → segmentation → fine-tuned recognition), not the headline number.

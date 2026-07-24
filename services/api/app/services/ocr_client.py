@@ -1,8 +1,9 @@
 """OCR adapter: runs the ocr_engine pipeline over an uploaded report.
 
-Uses the fine-tuned TrOCR recogniser when a trained model is configured (OCR_MODEL_DIR)
-and the image is a supported type. Otherwise returns a deterministic stub so the pipeline
-stays runnable in CI, offline, and before the model has been trained.
+Default engine is Tesseract (CPU, no training, accurate on clean printed reports). If
+OCR_MODEL_DIR points at a fine-tuned TrOCR model it uses that instead. Falls back to a
+deterministic stub when neither engine is available (e.g. the tesseract binary isn't
+installed), so the pipeline stays runnable in CI and offline.
 """
 
 import logging
@@ -33,22 +34,29 @@ def _bootstrap_ocr_engine() -> None:
 
 @lru_cache(maxsize=1)
 def _get_recognizer():
-    """Load the fine-tuned TrOCR recogniser once, or return None to signal fallback.
+    """Load the OCR recogniser once, or return None to signal the stub fallback.
 
-    Returns None when no model is configured, the model dir is missing, or the training
-    extras (torch/transformers) aren't installed — all expected states, not errors.
+    Prefers a fine-tuned TrOCR model when OCR_MODEL_DIR is set; otherwise Tesseract. Returns
+    None only when neither engine can be loaded (expected offline / in minimal CI).
     """
+    _bootstrap_ocr_engine()
     settings = get_settings()
     model_dir = settings.ocr_model_dir
-    if not model_dir or not Path(model_dir).exists():
-        return None
-    try:
-        _bootstrap_ocr_engine()
-        from ocr_engine.recognizer import TrOCRRecognizer
 
-        return TrOCRRecognizer(model_dir=model_dir)
-    except Exception as exc:  # noqa: BLE001 - any load failure -> graceful stub
-        logger.warning("OCR model unavailable (%s); falling back to stub", exc)
+    if model_dir and Path(model_dir).exists():
+        try:
+            from ocr_engine.recognizer import TrOCRRecognizer
+
+            return TrOCRRecognizer(model_dir=model_dir)
+        except Exception as exc:  # noqa: BLE001 - fall through to Tesseract/stub
+            logger.warning("TrOCR model unavailable (%s); trying Tesseract", exc)
+
+    try:
+        from ocr_engine.recognizer import TesseractRecognizer
+
+        return TesseractRecognizer()
+    except Exception as exc:  # noqa: BLE001 - pytesseract/binary missing -> stub
+        logger.warning("Tesseract unavailable (%s); falling back to stub", exc)
         return None
 
 

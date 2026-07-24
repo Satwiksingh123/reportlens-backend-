@@ -1,8 +1,11 @@
 """Line recognizers: turn a single cropped line image into text.
 
-`Recognizer` is the interface the inference pipeline depends on. Two implementations:
+`Recognizer` is the interface the inference pipeline depends on. Implementations:
   - StubRecognizer: deterministic, dependency-free, for tests and offline assembly checks.
-  - TrOCRRecognizer: the fine-tuned model (optional `train` extra; lazy imports torch).
+  - TesseractRecognizer: the default production engine - a mature, CPU-only OCR that is
+    highly accurate on clean printed text like lab reports (no GPU, no training).
+  - TrOCRRecognizer: the optional fine-tuned transformer path (see the Colab notebook);
+    kept as a from-scratch ML artifact rather than the default engine.
 """
 
 from pathlib import Path
@@ -17,6 +20,37 @@ class Recognizer(Protocol):
 
     def recognize_batch(self, images: list[Image.Image]) -> list[str]:
         ...
+
+
+class TesseractRecognizer:
+    """Tesseract OCR via pytesseract. Default production recogniser.
+
+    Reads a whole text-line crop at once (`--psm 7`), which suits our segmentation output:
+    a report row like "Bilirubin Total  0.3  mg/dL  0.3-1.2" comes back as one space-
+    separated line that the medical parser then splits. Needs the `tesseract` binary
+    (pre-installed on Colab; `apt-get install tesseract-ocr` elsewhere) and the `ocr` extra.
+    """
+
+    def __init__(self, lang: str = "eng", psm: int = 7):
+        import pytesseract  # lazy: keeps ocr_engine importable without the ocr extra
+
+        # Probe the binary now so a missing install fails at construction (letting callers
+        # fall back) rather than deep inside the pipeline on the first crop.
+        pytesseract.get_tesseract_version()
+
+        self._pt = pytesseract
+        self.lang = lang
+        self._config = f"--psm {psm}"
+
+    def recognize(self, image: Image.Image) -> str:
+        return self.recognize_batch([image])[0]
+
+    def recognize_batch(self, images: list[Image.Image]) -> list[str]:
+        out = []
+        for im in images:
+            text = self._pt.image_to_string(im.convert("RGB"), lang=self.lang, config=self._config)
+            out.append(text.strip())
+        return out
 
 
 class StubRecognizer:

@@ -1,5 +1,5 @@
 from ocr_engine.infer import extract_text_from_image
-from ocr_engine.recognizer import Recognizer, StubRecognizer
+from ocr_engine.recognizer import Recognizer, StubRecognizer, TesseractRecognizer
 from ocr_engine.segment import segment_lines
 
 __all__ = [
@@ -7,4 +7,5 @@ __all__ = [
     "segment_lines",
     "Recognizer",
     "StubRecognizer",
+    "TesseractRecognizer",
 ]

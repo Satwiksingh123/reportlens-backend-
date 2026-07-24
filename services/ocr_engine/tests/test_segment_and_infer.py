@@ -87,11 +87,27 @@ def test_extract_text_assembles_one_line_per_band():
     assert text.split("\n") == ["X", "X", "X"]
 
 
-def test_extract_joins_words_within_a_line():
-    # two columns -> two recognised crops joined by a space
+def test_extract_is_line_level():
+    # infer recognises each whole line crop (Tesseract reads a full line natively), so a
+    # single-line page yields a single recognised string, not one-per-word.
     img = _make_page(["Sodium        141"])
     text = extract_text_from_pil(img, StubRecognizer(token="W"))
-    assert text == "W W"
+    assert text == "W"
+
+
+def test_tesseract_recognizer_reads_text_if_installed():
+    import pytest
+
+    from ocr_engine.recognizer import TesseractRecognizer
+
+    try:
+        rec = TesseractRecognizer()
+    except Exception:  # noqa: BLE001 - tesseract binary/pytesseract not present locally
+        pytest.skip("tesseract not installed in this environment")
+
+    img = _make_page(["Hemoglobin"])
+    out = rec.recognize(segment_lines(img)[0].image)
+    assert "Hemoglobin" in out
 
 
 def test_build_word_samples_crops_each_word(tmp_path):

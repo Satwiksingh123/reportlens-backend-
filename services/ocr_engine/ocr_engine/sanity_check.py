@@ -1,13 +1,13 @@
 """Run the full OCR pipeline on one freshly generated synthetic report.
 
-Prints the ground-truth lines next to the recognised text so you can eyeball how well the
-fine-tuned model is doing.
+Prints the ground-truth lines next to the recognised text so you can eyeball accuracy, and
+reports a character error rate (CER) over the whole page.
 
-Deliberately a CLI (not notebook code): it runs in its own process, so it always picks up
-the installed library versions rather than whatever a long-lived notebook kernel imported
-earlier in the session.
+Defaults to the Tesseract engine (no GPU, no training). Pass --engine trocr --model-dir
+<dir> to use the optional fine-tuned transformer instead.
 
-    python -m ocr_engine.sanity_check --model-dir artifacts/trocr-lab
+    python -m ocr_engine.sanity_check                 # Tesseract (default)
+    python -m ocr_engine.sanity_check --engine trocr --model-dir artifacts/trocr-lab
 """
 
 import argparse
@@ -22,8 +22,21 @@ for _pkg in ("data_synthesis",):
         sys.path.insert(0, _p)
 
 
+def _cer(ref: str, hyp: str) -> float:
+    """Levenshtein distance / len(ref), a standard OCR character error rate."""
+    r, h = ref, hyp
+    prev = list(range(len(h) + 1))
+    for i, rc in enumerate(r, 1):
+        cur = [i]
+        for j, hc in enumerate(h, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (rc != hc)))
+        prev = cur
+    return prev[-1] / max(1, len(r))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Full-pipeline sanity check on a synthetic page.")
+    ap.add_argument("--engine", choices=["tesseract", "trocr"], default="tesseract")
     ap.add_argument("--model-dir", type=str, default="artifacts/trocr-lab")
     ap.add_argument("--seed", type=int, default=9999)
     args = ap.parse_args()
@@ -31,34 +44,34 @@ def main() -> None:
     from data_synthesis.generator import generate_report, render_report
 
     from ocr_engine.infer import extract_text_from_pil
-    from ocr_engine.recognizer import TrOCRRecognizer
 
     report = generate_report(seed=args.seed)
     img, _ = render_report(report, add_noise=True, seed=args.seed)
 
+    gt_lines = [ln for ln in report.text_lines if ln.strip()]
     print("=== ground truth ===")
-    for line in report.text_lines:
-        if line.strip():
-            print(line)
+    for line in gt_lines:
+        print(line)
 
-    recognizer = TrOCRRecognizer(model_dir=args.model_dir)
+    if args.engine == "trocr":
+        from ocr_engine.recognizer import TrOCRRecognizer
 
-    # Self-diagnosing: prints exactly what decoding settings are active, so a stale
-    # checkout (old code still on disk) is obvious from this output alone instead of
-    # needing a separate round-trip to confirm.
-    import inspect
+        recognizer = TrOCRRecognizer(model_dir=args.model_dir)
+    else:
+        from ocr_engine.recognizer import TesseractRecognizer
 
-    src = inspect.getsource(recognizer.recognize_batch)
-    print("\n=== active generate() kwargs (from installed ocr_engine on disk) ===")
-    for line in src.splitlines():
-        if any(k in line for k in ("length_penalty", "early_stopping", "no_repeat", "num_beams")):
-            print(" ", line.strip())
-    if "length_penalty=1.0" not in src.replace(" ", ""):
-        print("  !! length_penalty=1.0 NOT found - this is a STALE checkout, re-run the "
-              "clone cell (cell 2) to pull the latest fix, then re-run this cell.")
+        recognizer = TesseractRecognizer()
 
-    print("\n=== OCR output ===")
-    print(extract_text_from_pil(img, recognizer))
+    output = extract_text_from_pil(img, recognizer)
+    print(f"\n=== OCR output ({args.engine}) ===")
+    print(output)
+
+    # CER on the collapsed-whitespace text (spacing between columns isn't what we grade).
+    ref = " ".join(" ".join(gt_lines).split())
+    hyp = " ".join(output.split())
+    cer = _cer(ref, hyp)
+    acc = max(0.0, 1 - cer) * 100
+    print(f"\n=== accuracy ===\nCER = {cer:.3f}   (character accuracy ~ {acc:.1f}%)")
 
 
 if __name__ == "__main__":
