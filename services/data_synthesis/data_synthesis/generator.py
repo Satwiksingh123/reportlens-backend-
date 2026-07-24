@@ -10,6 +10,7 @@ sampled value is known, which lets us measure parser accuracy automatically.
 """
 
 import random
+import re
 from dataclasses import dataclass, field
 
 from data_synthesis.ranges import BiomarkerRef, panel_biomarkers, panel_names
@@ -233,26 +234,25 @@ def _load_font(size: int):
 
 
 def _word_boxes(draw, line: str, x0: int, y_top: int, y_bot: int, font) -> list[dict]:
-    """Per-word boxes for a rendered line, using font metrics to locate each word.
+    """Per-FIELD boxes for a rendered line, using font metrics to locate each field.
 
-    A "word" is a maximal run of non-space characters. x extents come from the pixel width
-    of the substring before/through the word, so it works for any font.
+    A "field" is a run of text whose internal spaces are single (a column value such as
+    "Bilirubin Total" or "0.3-1.2"); columns are separated by 2+ spaces. This must match
+    how ocr_engine.segment.split_into_words groups a line at inference time - otherwise the
+    model would train on individual words but be asked to read whole columns (or vice
+    versa), a train/serve skew that produces dropped/garbled output.
     """
-    words: list[dict] = []
-    idx = 0
-    n = len(line)
-    while idx < n:
-        if line[idx] == " ":
-            idx += 1
-            continue
-        start = idx
-        while idx < n and line[idx] != " ":
-            idx += 1
-        word = line[start:idx]
-        wx0 = x0 + int(draw.textlength(line[:start], font=font))
-        wx1 = x0 + int(draw.textlength(line[:idx], font=font))
-        words.append({"text": word, "box": [wx0, y_top, wx1, y_bot]})
-    return words
+    fields: list[dict] = []
+    for m in _FIELD_RE.finditer(line):
+        start, end, text = m.start(), m.end(), m.group()
+        fx0 = x0 + int(draw.textlength(line[:start], font=font))
+        fx1 = x0 + int(draw.textlength(line[:end], font=font))
+        fields.append({"text": text, "box": [fx0, y_top, fx1, y_bot]})
+    return fields
+
+
+# maximal run of non-space tokens joined by SINGLE spaces (a column); a 2+ space gap breaks it
+_FIELD_RE = re.compile(r"\S+(?: \S+)*")
 
 
 def _apply_scan_noise(img, rng, Image, ImageFilter):

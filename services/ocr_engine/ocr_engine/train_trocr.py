@@ -25,16 +25,31 @@ for _pkg in ("data_synthesis",):
         sys.path.insert(0, _p)
 
 
+# Bump when rendering or box logic changes so cached data from an older layout is discarded
+# instead of silently reused (a stale cache meant the model never actually saw new data).
+_DATA_VERSION = "3-fields-26px"
+
+
 def _generate_dataset(num_reports: int, data_dir: Path, seed: int) -> None:
     import json
+    import shutil
 
     from data_synthesis.generator import generate_report, render_report
 
-    data_dir.mkdir(parents=True, exist_ok=True)
-    existing = len(list(data_dir.glob("*.png")))
-    if existing >= num_reports:
-        print(f"[data] reusing {existing} existing reports in {data_dir}")
+    stamp = data_dir / ".render_version"
+    cached_ok = (
+        stamp.exists()
+        and stamp.read_text().strip() == _DATA_VERSION
+        and len(list(data_dir.glob("*.png"))) >= num_reports
+    )
+    if cached_ok:
+        print(f"[data] reusing cached reports in {data_dir} (version {_DATA_VERSION})")
         return
+    if data_dir.exists():
+        print(f"[data] cache missing or stale -> regenerating {data_dir}")
+        shutil.rmtree(data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+
     print(f"[data] generating {num_reports} synthetic reports -> {data_dir}")
     for i in range(num_reports):
         report = generate_report(seed=seed + i)
@@ -42,6 +57,7 @@ def _generate_dataset(num_reports: int, data_dir: Path, seed: int) -> None:
         stem = f"{i:06d}"
         img.save(data_dir / f"{stem}.png")
         (data_dir / f"{stem}.ocr.json").write_text(json.dumps(boxes))
+    stamp.write_text(_DATA_VERSION)
 
 
 def load_processor(model_dir: str):

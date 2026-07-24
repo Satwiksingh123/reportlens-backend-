@@ -29,6 +29,25 @@ def test_render_produces_image_and_boxes():
     assert boxes and all("box" in b and "text" in b for b in boxes)
 
 
+def test_word_boxes_group_columns_not_individual_words():
+    """A column value with an internal single space (e.g. a two-word test name) must be one
+    field box, matching how the OCR pipeline splits a line at inference time. Splitting it
+    per-word here would create a train/serve skew."""
+    r = generate_report(panel="LFT", seed=11)
+    _img, boxes = render_report(r, add_noise=False, seed=11)
+    multiword = [
+        b for b in boxes
+        for w in b["words"]
+        if " " in w["text"]
+    ]
+    # at least one field keeps an internal space (e.g. "Bilirubin Total", "Total Protein")
+    assert multiword, "expected some column fields to retain an internal space"
+    # and every field box is non-empty text
+    for b in boxes:
+        for w in b["words"]:
+            assert w["text"].strip()
+
+
 def test_ground_truth_status_matches_reference_table():
     """The generator's declared status must equal what the parser derives from the
     same text — this is the self-consistency guarantee that makes the data usable."""
