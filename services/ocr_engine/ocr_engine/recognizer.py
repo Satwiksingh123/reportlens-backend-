@@ -65,15 +65,47 @@ class TrOCRRecognizer:  # pragma: no cover - requires the optional train extra +
             return []
         from ocr_engine.preprocess import letterbox_square
 
-        rgb = [letterbox_square(im) for im in images]
-        pixel_values = self.processor(images=rgb, return_tensors="pt").pixel_values.to(self.device)
-        with self._torch.no_grad():
-            generated = self.model.generate(
-                pixel_values,
-                max_new_tokens=32,
-                num_beams=4,
-                no_repeat_ngram_size=3,
-                length_penalty=1.4,  # counteract beam search's short-output bias
-                early_stopping=False,
-            )
-        return [t.strip() for t in self.processor.batch_decode(generated, skip_special_tokens=True)]
+        # Measured directly against ground truth: crops are correctly and completely
+        # bounded (sometimes with margin to spare), yet generation still stops early
+        # ("mg/dL" -> "mg/") - the model commits to EOS before the visible content is
+        # exhausted. min_new_tokens, estimated from each crop's own width/height (before
+        # letterboxing), forces the decoder past that point instead of tuning search
+        # ranking (length_penalty alone did not change output at all - proof the correct
+        # continuation wasn't even in the beam). Generated one crop at a time since
+        # min_new_tokens is a single scalar per generate() call, not per-batch-item.
+        results = []
+        for raw in images:
+            min_new = _estimate_min_new_tokens(raw)
+            pixel_values = self.processor(
+                images=letterbox_square(raw), return_tensors="pt"
+            ).pixel_values.to(self.device)
+            with self._torch.no_grad():
+                generated = self.model.generate(
+                    pixel_values,
+                    max_new_tokens=32,
+                    min_new_tokens=min_new,
+                    num_beams=4,
+                    no_repeat_ngram_size=3,
+                    length_penalty=1.4,
+                    early_stopping=False,
+                )
+            text = self.processor.batch_decode(generated, skip_special_tokens=True)[0]
+            results.append(text.strip())
+        return results
+
+
+def _estimate_min_new_tokens(
+    image: Image.Image, char_aspect: float = 0.32, tokens_per_char: float = 0.6
+) -> int:
+    """Estimate a conservative minimum token count from a crop's raw width/height.
+
+    `char_aspect` ~ typical character width/height for this font (measured locally from
+    synthetic crops: ~0.26-0.32). `tokens_per_char` < 1 because BPE tokens often span more
+    than one character, so this deliberately underestimates rather than forcing garbage
+    past a genuinely short word.
+    """
+    w, h = image.size
+    if h == 0:
+        return 1
+    num_chars = w / (h * char_aspect)
+    return max(1, min(20, round(num_chars * tokens_per_char)))

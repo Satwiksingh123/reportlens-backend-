@@ -129,6 +129,18 @@ def test_extract_from_image_path(tmp_path):
     assert text == "L\nL"
 
 
+def test_estimate_min_new_tokens_scales_with_width():
+    from ocr_engine.recognizer import _estimate_min_new_tokens
+
+    short = Image.new("RGB", (17, 16))  # e.g. "0.3"
+    long = Image.new("RGB", (69, 16))  # e.g. "Bilirubin Total"
+    est_short = _estimate_min_new_tokens(short)
+    est_long = _estimate_min_new_tokens(long)
+    assert 0 < est_short < est_long
+    # never demands more than max_new_tokens allows in practice
+    assert est_long <= 20
+
+
 def test_missing_model_dir_raises_clear_error():
     """A path-like model dir that doesn't exist must not be mistaken for a Hub repo id
     (which fails with a confusing HTTP 401)."""
