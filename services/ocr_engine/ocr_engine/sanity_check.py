@@ -51,10 +51,10 @@ def main() -> None:
     src = inspect.getsource(recognizer.recognize_batch)
     print("\n=== active generate() kwargs (from installed ocr_engine on disk) ===")
     for line in src.splitlines():
-        if "length_penalty" in line or "early_stopping" in line or "no_repeat" in line:
+        if any(k in line for k in ("length_penalty", "early_stopping", "no_repeat", "min_new")):
             print(" ", line.strip())
-    if "length_penalty" not in src:
-        print("  !! length_penalty NOT found - this is a STALE checkout, re-run the clone "
+    if "min_new_tokens" not in src:
+        print("  !! min_new_tokens NOT found - this is a STALE checkout, re-run the clone "
               "cell (cell 2) to pull the latest fix, then re-run this cell.")
 
     print("\n=== OCR output ===")
