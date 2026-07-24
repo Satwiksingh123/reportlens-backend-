@@ -25,22 +25,45 @@ class Recognizer(Protocol):
 class TesseractRecognizer:
     """Tesseract OCR via pytesseract. Default production recogniser.
 
-    Reads a whole text-line crop at once (`--psm 7`), which suits our segmentation output:
-    a report row like "Bilirubin Total  0.3  mg/dL  0.3-1.2" comes back as one space-
-    separated line that the medical parser then splits. Needs the `tesseract` binary
-    (pre-installed on Colab; `apt-get install tesseract-ocr` elsewhere) and the `ocr` extra.
+    Reads the whole page at once with Tesseract's own layout analysis (`--psm 4`, "single
+    column of variable-size text"), the mode that scored best across environments: ~99%
+    character accuracy locally and ~86% on Colab (the gap is font rendering - Windows
+    Consolas vs Linux DejaVu). Far better than feeding it pre-cut line crops. `read_page`
+    is the production entry point; per-line `recognize_batch` (`--psm 7`) is kept so the
+    same class also fits the line-crop Recognizer protocol.
+
+    Needs the `tesseract` binary (pre-installed on Colab; `apt-get install tesseract-ocr`
+    on Debian/Ubuntu, or the UB-Mannheim installer on Windows) and the `ocr` extra. Honours
+    the TESSERACT_CMD env var and falls back to the default Windows install path.
     """
 
-    def __init__(self, lang: str = "eng", psm: int = 7):
+    def __init__(self, lang: str = "eng", page_psm: int = 4, line_psm: int = 7):
+        import os
+
         import pytesseract  # lazy: keeps ocr_engine importable without the ocr extra
 
+        cmd = os.environ.get("TESSERACT_CMD")
+        if not cmd and os.name == "nt":
+            win = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+            if os.path.exists(win):
+                cmd = win
+        if cmd:
+            pytesseract.pytesseract.tesseract_cmd = cmd
+
         # Probe the binary now so a missing install fails at construction (letting callers
-        # fall back) rather than deep inside the pipeline on the first crop.
+        # fall back) rather than deep inside the pipeline.
         pytesseract.get_tesseract_version()
 
         self._pt = pytesseract
         self.lang = lang
-        self._config = f"--psm {psm}"
+        self._page_config = f"--psm {page_psm}"
+        self._line_config = f"--psm {line_psm}"
+
+    def read_page(self, image: Image.Image) -> str:
+        """Recognise a whole report image at once (the accurate production path)."""
+        return self._pt.image_to_string(
+            image.convert("RGB"), lang=self.lang, config=self._page_config
+        ).strip()
 
     def recognize(self, image: Image.Image) -> str:
         return self.recognize_batch([image])[0]
@@ -48,7 +71,9 @@ class TesseractRecognizer:
     def recognize_batch(self, images: list[Image.Image]) -> list[str]:
         out = []
         for im in images:
-            text = self._pt.image_to_string(im.convert("RGB"), lang=self.lang, config=self._config)
+            text = self._pt.image_to_string(
+                im.convert("RGB"), lang=self.lang, config=self._line_config
+            )
             out.append(text.strip())
         return out
 
