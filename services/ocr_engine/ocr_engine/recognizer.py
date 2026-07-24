@@ -75,6 +75,13 @@ class TrOCRRecognizer:  # pragma: no cover - requires the optional train extra +
                 pixel_values,
                 max_new_tokens=32,
                 num_beams=4,
-                no_repeat_ngram_size=3,  # still guards against exact-loop repetition
+                # length_penalty=1.0 (neutral) + early_stopping is the fix for garbage tails
+                # ("0.3" -> "0.333533833G"): a model trained with length_penalty=1.4 baked
+                # into its generation_config was rewarded for longer output and appended
+                # junk after the real text. Passing these explicitly overrides the baked
+                # config, so an already-trained model is fixed without retraining.
+                length_penalty=1.0,
+                early_stopping=True,
+                no_repeat_ngram_size=3,  # guards against exact-loop repetition
             )
         return [t.strip() for t in self.processor.batch_decode(generated, skip_special_tokens=True)]

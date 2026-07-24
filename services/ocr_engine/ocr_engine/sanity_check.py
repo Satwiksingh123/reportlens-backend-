@@ -51,11 +51,11 @@ def main() -> None:
     src = inspect.getsource(recognizer.recognize_batch)
     print("\n=== active generate() kwargs (from installed ocr_engine on disk) ===")
     for line in src.splitlines():
-        if any(k in line for k in ("length_penalty", "early_stopping", "no_repeat", "min_new")):
+        if any(k in line for k in ("length_penalty", "early_stopping", "no_repeat", "num_beams")):
             print(" ", line.strip())
-    if "min_new_tokens" not in src:
-        print("  !! min_new_tokens NOT found - this is a STALE checkout, re-run the clone "
-              "cell (cell 2) to pull the latest fix, then re-run this cell.")
+    if "length_penalty=1.0" not in src.replace(" ", ""):
+        print("  !! length_penalty=1.0 NOT found - this is a STALE checkout, re-run the "
+              "clone cell (cell 2) to pull the latest fix, then re-run this cell.")
 
     print("\n=== OCR output ===")
     print(extract_text_from_pil(img, recognizer))
