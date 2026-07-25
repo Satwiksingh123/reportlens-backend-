@@ -165,3 +165,24 @@ def test_bare_cholesterol_label_matches_total_cholesterol():
     assert p.test_name == "Total Cholesterol"
     assert p.value == "192"
     assert p.status == "Normal"
+
+
+def test_rdw_ocr_misread_as_row():
+    # Tesseract reads "RDW" as "ROW" on real reports (D/W glyphs); must still match.
+    p = parse_line("ROW 12.00 Normal 11.60 - 14.00 %")
+    assert p.test_name == "RDW"
+    assert p.value == "12.00"
+    assert p.status == "Normal"
+
+
+def test_triglyceride_singular():
+    p = parse_line("Triglyceride 143.0 mg/dL < 150")
+    assert p.test_name == "Triglycerides"
+    assert p.value == "143.0"
+
+
+def test_alkaline_phosphatase_with_mangled_name():
+    # Real OCR: "Alkaline Phosphatase (ALP)" -> "Alkaline: Rhespliatase (ALF)".
+    p = parse_line("Alkaline: Rhespliatase (ALF) 45.00 Normal 30.00 - 120.00 U/L")
+    assert p.test_name == "Alkaline Phosphatase"
+    assert p.value == "45.00"

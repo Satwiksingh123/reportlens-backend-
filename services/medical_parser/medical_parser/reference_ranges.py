@@ -43,7 +43,9 @@ REFERENCE_TABLE: list[BiomarkerRef] = [
     BiomarkerRef("CBC", "MCV", "fL", 83.0, 101.0, ("mean corpuscular volume",)),
     BiomarkerRef("CBC", "MCH", "pg", 27.0, 32.0, ("mean corpuscular hemoglobin",)),
     BiomarkerRef("CBC", "MCHC", "g/dL", 31.5, 34.5, ("mean corpuscular hemoglobin concentration",)),
-    BiomarkerRef("CBC", "RDW", "%", 11.6, 14.0, ("red cell distribution width",)),
+    # "row" is a real OCR misread of "RDW" (the D/W glyphs read as O/blank) seen on real
+    # reports; safe in this domain (no lab line legitimately reads "row <number> %").
+    BiomarkerRef("CBC", "RDW", "%", 11.6, 14.0, ("red cell distribution width", "row")),
     BiomarkerRef("CBC", "Neutrophils", "%", 40.0, 80.0, ("neutrophil",)),
     BiomarkerRef("CBC", "Lymphocytes", "%", 20.0, 40.0, ("lymphocyte",)),
     BiomarkerRef("CBC", "Monocytes", "%", 2.0, 10.0, ("monocyte",)),
@@ -56,7 +58,10 @@ REFERENCE_TABLE: list[BiomarkerRef] = [
     BiomarkerRef("LFT", "Bilirubin Indirect", "mg/dL", 0.1, 1.0, ("indirect bilirubin", "unconjugated bilirubin")),
     BiomarkerRef("LFT", "SGPT (ALT)", "U/L", 7.0, 56.0, ("alt", "sgpt", "alanine aminotransferase")),
     BiomarkerRef("LFT", "SGOT (AST)", "U/L", 5.0, 40.0, ("ast", "sgot", "aspartate aminotransferase")),
-    BiomarkerRef("LFT", "Alkaline Phosphatase", "U/L", 44.0, 147.0, ("alp", "alk phos")),
+    # bare "alkaline": OCR often mangles "Phosphatase" (seen as "Rhespliatase") and the
+    # "(ALP)" tag (seen as "(ALF)"), leaving "Alkaline" as the only reliable anchor. Safe -
+    # no other v1 biomarker contains the word "alkaline".
+    BiomarkerRef("LFT", "Alkaline Phosphatase", "U/L", 44.0, 147.0, ("alp", "alk phos", "alkaline")),
     BiomarkerRef("LFT", "Total Protein", "g/dL", 6.0, 8.3, ("protein total",)),
     BiomarkerRef("LFT", "Albumin", "g/dL", 3.5, 5.2, ("alb",)),
     BiomarkerRef("LFT", "Globulin", "g/dL", 2.0, 3.5, ()),
@@ -77,7 +82,8 @@ REFERENCE_TABLE: list[BiomarkerRef] = [
     # Cholesterol") is safe here: HDL/LDL/VLDL/Non-HDL Cholesterol all have a longer,
     # more specific alias that wins first under the longest-key-first matching order.
     BiomarkerRef("Lipid Profile", "Total Cholesterol", "mg/dL", None, 200.0, ("cholesterol total", "t.cholesterol", "cholesterol")),
-    BiomarkerRef("Lipid Profile", "Triglycerides", "mg/dL", None, 150.0, ("tg", "trig")),
+    # "triglyceride" (singular) is how several real reports print it (Max Lab does).
+    BiomarkerRef("Lipid Profile", "Triglycerides", "mg/dL", None, 150.0, ("tg", "trig", "triglyceride")),
     BiomarkerRef("Lipid Profile", "HDL Cholesterol", "mg/dL", 40.0, None, ("hdl", "hdl-c")),
     BiomarkerRef("Lipid Profile", "LDL Cholesterol", "mg/dL", None, 100.0, ("ldl", "ldl-c")),
     BiomarkerRef("Lipid Profile", "VLDL Cholesterol", "mg/dL", 5.0, 40.0, ("vldl",)),
