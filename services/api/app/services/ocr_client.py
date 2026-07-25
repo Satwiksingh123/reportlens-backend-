@@ -81,7 +81,19 @@ def extract_text(path: str, content_type: str) -> str:
 
 def _extract_from_pdf(path: str, recognizer) -> str:
     """Render every PDF page to an image and recognise each (most real report uploads
-    are PDFs, not raw images). Page texts are joined with a blank line."""
+    are PDFs, not raw images). Page texts are joined with a blank line.
+
+    NOTE: a native-text-layer-first approach (via ocr_engine.pdf_utils.extract_pdf_text)
+    was tried and measured against the real sample reports - it was WORSE, not better:
+    these table-based PDFs store text in column order in the content stream (all test
+    names, then all values, then all ranges), so PyMuPDF's plain-text extraction breaks
+    row alignment between a test's name/value/range entirely. Tesseract's OCR, run on the
+    rendered page, reconstructs visual (row) reading order correctly and stayed the more
+    accurate path for these layouts. A layout-aware extraction (grouping PyMuPDF's
+    word-level bounding boxes into rows ourselves) could beat OCR for native-text PDFs,
+    but is unimplemented and untested - left as a documented future improvement, not
+    shipped without validation.
+    """
     from ocr_engine.infer import extract_text_from_pil
     from ocr_engine.pdf_utils import pdf_to_images
 

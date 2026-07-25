@@ -58,6 +58,18 @@ PDF upload support was also added (`ocr_engine.pdf_utils.pdf_to_images` + `pymup
 real reports are usually uploaded as PDFs, not raw images — previously only image content
 types reached the recogniser.
 
+**Tried and reverted:** preferring the PDF's native embedded text layer over OCR (these
+PDFs are digitally generated, not scans, so the text layer is perfectly accurate in
+isolation) sounded like a strict improvement but measured WORSE - these table-based PDFs
+store text in column order in the content stream (all test names, then all values, then
+all ranges), so PyMuPDF's plain-text extraction breaks row alignment between a test's
+name/value/range entirely. Tesseract's OCR on the rendered page reconstructs visual (row)
+reading order correctly and stayed the more accurate path. A layout-aware extraction
+(grouping PyMuPDF's word-level bounding boxes into rows ourselves) could beat OCR for
+native-text PDFs, but is unimplemented/untested - a documented future idea, not shipped
+without validation. Lesson: measure against the real files before trusting an "obviously
+better" architecture change.
+
 **Current state (2026-07-25):** across all 9 real PDFs, straight from the file (no manual
 pre-processing), the full pipeline extracts 71 biomarker rows with only 3 missing values,
 all documented, known, low-priority edge cases:
