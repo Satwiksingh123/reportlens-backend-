@@ -25,19 +25,19 @@ class Recognizer(Protocol):
 class TesseractRecognizer:
     """Tesseract OCR via pytesseract. Default production recogniser.
 
-    Reads the whole page at once with Tesseract's own layout analysis (`--psm 4`, "single
-    column of variable-size text"), the mode that scored best across environments: ~99%
-    character accuracy locally and ~86% on Colab (the gap is font rendering - Windows
-    Consolas vs Linux DejaVu). Far better than feeding it pre-cut line crops. `read_page`
-    is the production entry point; per-line `recognize_batch` (`--psm 7`) is kept so the
-    same class also fits the line-crop Recognizer protocol.
+    Reads the whole page at once with Tesseract's own layout analysis (`--psm 6`, "uniform
+    block of text"), which scores ~99.6% character accuracy on the synthetic reports (now
+    that data_synthesis bundles its font, the number is consistent across Colab / local /
+    Docker). Far better than feeding it pre-cut line crops. `read_page` is the production
+    entry point; per-line `recognize_batch` (`--psm 7`) is kept so the same class also fits
+    the line-crop Recognizer protocol.
 
     Needs the `tesseract` binary (pre-installed on Colab; `apt-get install tesseract-ocr`
     on Debian/Ubuntu, or the UB-Mannheim installer on Windows) and the `ocr` extra. Honours
     the TESSERACT_CMD env var and falls back to the default Windows install path.
     """
 
-    def __init__(self, lang: str = "eng", page_psm: int = 4, line_psm: int = 7):
+    def __init__(self, lang: str = "eng", page_psm: int = 6, line_psm: int = 7):
         import os
 
         import pytesseract  # lazy: keeps ocr_engine importable without the ocr extra

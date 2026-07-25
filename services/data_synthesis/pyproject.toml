@@ -8,6 +8,13 @@ dependencies = ["Pillow>=10.0"]
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
 
+[tool.setuptools.packages.find]
+include = ["data_synthesis*"]
+
+[tool.setuptools.package-data]
+# ship the bundled font so rendering is identical in any install
+data_synthesis = ["fonts/*.ttf"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

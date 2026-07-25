@@ -12,6 +12,7 @@ sampled value is known, which lets us measure parser accuracy automatically.
 import random
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from data_synthesis.ranges import BiomarkerRef, panel_biomarkers, panel_names
 
@@ -208,29 +209,19 @@ def render_report(report: SyntheticReport, add_noise: bool = True, seed: int | N
 FONT_SIZE = 26
 LINE_STEP = 42
 
-# A larger, crisp monospace font renders clearer glyphs (more pixels per character), which
-# is the single biggest lever on downstream OCR accuracy. Try common locations across
-# Colab/Linux (DejaVu) and Windows (Consolas/Arial) before the tiny bitmap fallback.
-_FONT_CANDIDATES = (
-    "DejaVuSansMono.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-    "DejaVuSans.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    "consola.ttf",
-    "Arial.ttf",
-    "arial.ttf",
-)
+# A font bundled with the package guarantees IDENTICAL, crisp rendering everywhere - Colab,
+# local, CI, Docker - so OCR accuracy doesn't swing with whatever fonts a host happens to
+# have (an earlier version fell back to a tiny system font on Colab and dropped ~13%).
+_BUNDLED_FONT = str(Path(__file__).resolve().parent / "fonts" / "DejaVuSansMono.ttf")
 
 
 def _load_font(size: int):
     from PIL import ImageFont
 
-    for name in _FONT_CANDIDATES:
-        try:
-            return ImageFont.truetype(name, size)
-        except OSError:
-            continue
-    return ImageFont.load_default()
+    try:
+        return ImageFont.truetype(_BUNDLED_FONT, size)
+    except OSError:
+        return ImageFont.load_default()
 
 
 def _word_boxes(draw, line: str, x0: int, y_top: int, y_bot: int, font) -> list[dict]:
