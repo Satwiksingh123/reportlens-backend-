@@ -186,3 +186,20 @@ def test_alkaline_phosphatase_with_mangled_name():
     p = parse_line("Alkaline: Rhespliatase (ALF) 45.00 Normal 30.00 - 120.00 U/L")
     assert p.test_name == "Alkaline Phosphatase"
     assert p.value == "45.00"
+
+
+def test_value_on_following_line_is_merged():
+    # OCR sometimes splits a test's name and value across lines (the method sub-label
+    # carries the value): "MCH" then "Calculated 35 High 27 - 32 pg".
+    text = "MCH\nCalculated 35 High 27 - 32 pg\nMCHC 33.0 Normal 32.5 - 34.5 g/dL"
+    rows = {r.test_name: r.value for r in parse_report(text)}
+    assert rows.get("MCH") == "35"
+    assert rows.get("MCHC") == "33.0"
+
+
+def test_two_column_label_then_value_merged():
+    # A detached two-column layout: label, value, printed range on separate lines.
+    text = "Triglycerides\n100.00\n< 150.00\nHDL Cholesterol\n50.00"
+    rows = {r.test_name: r.value for r in parse_report(text)}
+    assert rows.get("Triglycerides") == "100.00"
+    assert rows.get("HDL Cholesterol") == "50.00"

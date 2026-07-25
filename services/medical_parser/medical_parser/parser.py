@@ -217,6 +217,45 @@ def _fmt(x: float) -> str:
     return str(int(x)) if x.is_integer() else str(x)
 
 
+def _has_value_after_name(line: str) -> bool:
+    """True if `line` matches a biomarker AND has a numeric value after the name."""
+    m = _match_biomarker(line)
+    return bool(m and re.search(_NUM, line[m[1] :]))
+
+
+def _merge_continuation_lines(lines: list[str]) -> list[str]:
+    """Re-join a biomarker whose value landed on a following line.
+
+    Some layouts (and some OCR page-segmentation modes) put a test's name on one line
+    and its value on the next - either the method sub-label carried the value
+    ("MCH" / "Calculated 35 High 27 - 32 pg") or a two-column layout detached them
+    ("Triglycerides" / "100.00" / "< 150.00"). When a biomarker-name line has no value,
+    absorb following non-biomarker lines until (and including) the first one bearing a
+    number, stopping early if the next line is itself a different biomarker.
+    """
+    merged: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if _match_biomarker(line) and not _has_value_after_name(line):
+            combined = line
+            j = i + 1
+            while j < len(lines):
+                nxt = lines[j]
+                if _match_biomarker(nxt):  # a different biomarker starts; don't cross it
+                    break
+                combined += " " + nxt
+                j += 1
+                if re.search(_NUM, nxt):  # absorbed the value; stop
+                    break
+            merged.append(combined)
+            i = j
+        else:
+            merged.append(line)
+            i += 1
+    return merged
+
+
 def parse_report(raw_text: str, sex: str | None = None) -> list[ParsedBiomarker]:
     """Parse full OCR text into structured biomarkers.
 
@@ -224,14 +263,15 @@ def parse_report(raw_text: str, sex: str | None = None) -> list[ParsedBiomarker]
     actual measured value. Some real report layouts print the test name twice: once as
     a bare section heading (e.g. "HEMOGLOBIN", no number) and again on the real data row
     ("Hemoglobin (Hb) 12.5 Low 13.0-17.0 g/dL"). Naively keeping only the very first
-    match would silently keep the valueless heading and drop the real result.
+    match would silently keep the valueless heading and drop the real result. A
+    continuation-line merge first re-joins values that OCR split onto the next line.
     """
+    lines = [ln.strip() for ln in raw_text.splitlines() if ln.strip()]
+    lines = _merge_continuation_lines(lines)
+
     by_name: dict[str, ParsedBiomarker] = {}
     order: list[str] = []
-    for line in raw_text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
+    for line in lines:
         parsed = parse_line(line, sex=sex)
         if not parsed:
             continue

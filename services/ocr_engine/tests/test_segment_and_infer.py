@@ -115,8 +115,6 @@ def test_pdf_to_images_renders_each_page(tmp_path):
 
 
 def test_tesseract_recognizer_reads_text_if_installed():
-    import pytest
-
     from ocr_engine.recognizer import TesseractRecognizer
 
     try:
@@ -127,6 +125,21 @@ def test_tesseract_recognizer_reads_text_if_installed():
     img = _make_page(["Hemoglobin"])
     out = rec.recognize(segment_lines(img)[0].image)
     assert "Hemoglobin" in out
+
+
+def test_tesseract_multi_scale_read_page():
+    from ocr_engine.recognizer import TesseractRecognizer
+
+    try:
+        rec = TesseractRecognizer(extra_scales=(1.5,))
+    except Exception:  # noqa: BLE001 - tesseract not present locally
+        pytest.skip("tesseract not installed in this environment")
+
+    img = _make_page(["Hemoglobin 11.2 g/dL", "WBC 11500 /uL"])
+    text = rec.read_page(img)
+    # native + one upscaled pass are concatenated, so each line appears twice
+    assert text.count("Hemoglobin") >= 2
+    assert "11.2" in text and "11500" in text
 
 
 def test_build_word_samples_crops_each_word(tmp_path):

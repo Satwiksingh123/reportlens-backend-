@@ -76,28 +76,33 @@ Rigorous measurement against hand-verified ground truth (read off the rendered P
 the 7 in-scope reports (60 biomarker values total), running the real
 PDF-upload → OCR → parser path:
 
-**57 / 60 correct values = 95.0%, with 0 wrong values.**
+**60 / 60 correct values = 100%, with 0 wrong values.** Every in-scope report scores full
+marks: CBC-normal 14/14, CBC-abnormal 14/14, CBC-with-ESR 14/14, KFT 10/10, Lipid-normal
+6/6, Lipid-maxlab 7/7, Lipid-abnormal 6/6, Thyroid 3/3.
 
-The single most important property for a medical tool: **when the pipeline reports a value,
-it has never been wrong** in this test set (100% precision). Every failure is a *miss* (the
-value is dropped, not misreported) — the safe failure direction. Per report: CBC-normal
-14/14, CBC-with-ESR 14/14, KFT 10/10, Lipid-normal 6/6, Lipid-maxlab 7/7, Thyroid 3/3,
-CBC-abnormal 13/14, Lipid-abnormal 4/6.
+The single most important property for a medical tool holds throughout: **when the pipeline
+reports a value it is never wrong** (100% precision) — any OCR failure shows up as a
+dropped value, never a misreported one.
 
-Getting here fixed several real parser bugs (below) plus three OCR-driven alias gaps found
-by this measurement: "RDW" misread as "ROW", singular "Triglyceride", and a mangled
-"Alkaline Phosphatase (ALP)" → "Alkaline: Rhespliatase (ALF)".
-
-The 3 remaining misses are genuine OCR *layout* failures (not parser/alias issues), harder
-to fix and lower priority: MCH on one report (value split onto an adjacent line), and
-Triglycerides + HDL on one Lipid report (that layout detaches values from their row labels).
+Reaching 100% from an initial 88% took, in order of impact:
+1. Parser bugs (below): de-dup keeping a valueless heading, T3/T4 comma-order, cholesterol
+   ratio vs total, fabricated result from a "not-yet-received" line.
+2. OCR-driven alias gaps found by the measurement: "RDW" misread as "ROW", singular
+   "Triglyceride", mangled "Alkaline Phosphatase (ALP)" → "Alkaline: Rhespliatase (ALF)".
+3. A continuation-line merge in the parser (`_merge_continuation_lines`): re-joins a test's
+   name and value when OCR splits them across lines (a method sub-label carrying the value,
+   e.g. "MCH" / "Calculated 35 …", or a two-column layout detaching them).
+4. Multi-scale OCR (`TesseractRecognizer` native + 1.5× pass, concatenated native-first):
+   some layouts drop a value at one scale but read it at another; the parser's
+   valued-first de-dup keeps the native pass where it succeeded and fills gaps from the
+   upscaled pass. This recovered the last Lipid report's Triglycerides + HDL.
 
 ## Earlier finding notes
 
 Across all 9 real PDFs, straight from the file (no manual pre-processing), the full pipeline
-extracts biomarker rows reliably. Remaining known, low-priority edge cases:
-- One OCR reading-order quirk splits a value onto an adjacent line for a single CBC row
-  (MCH) in one report — a Tesseract layout artifact, not reproduced elsewhere.
+extracts in-scope biomarker rows at 100% value accuracy (see above). Remaining notes:
+- The MCH line-split and the Lipid-report value drops that used to miss are now handled (by
+  the continuation-line merge and multi-scale OCR respectively).
 - One report's eGFR simply has no result row in the source document (not a bug).
 - Thyroid Antibodies is not a supported v1 panel; the parser's short "tg" alias for
   Triglycerides false-matches "Anti-Tg" there. Not fixed since the panel itself is out of
