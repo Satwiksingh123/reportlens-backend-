@@ -41,18 +41,29 @@ unit / range) with very high fidelity across all 9 reports — the only unreliab
 are decorative (logo header, QR code area, barcode/signature footer), which the parser
 never reads anyway.
 
-Testing the full OCR → medical_parser pipeline against these surfaced and fixed three real
-parser bugs (see `services/medical_parser` git history around this date):
+Testing the full **PDF upload → OCR → medical_parser** pipeline (the real end-to-end path,
+via `app.services.ocr_client.extract_text`) against these surfaced and fixed four real bugs:
 1. De-dup logic could keep a valueless "section heading" match (e.g. a bare "HEMOGLOBIN"
    heading) over the real data row appearing later.
 2. "T3, TOTAL" / "T4, TOTAL" (reversed word order + comma) didn't match the "total t3" /
    "total t4" phrase aliases at all.
 3. "Total Cholesterol/HDL Ratio" was matched as plain "Total Cholesterol" (a true substring
    match), and bare "Cholesterol" (without "Total") didn't match anything.
+4. A line noting a test wasn't actually run (e.g. "... Sample not yet received") could still
+   have a nearby stray number fabricated into a fake result with a fake Low/High status.
+   Lines containing "not yet received", "sample rejected", "results awaited", etc. are now
+   skipped entirely.
 
-Known remaining gaps (not fixed, low impact / out of scope):
-- One OCR reading-order edge case split a value onto an adjacent line for a single CBC row
-  (MCH) in one report — a Tesseract layout quirk, not reproduced elsewhere.
+PDF upload support was also added (`ocr_engine.pdf_utils.pdf_to_images` + `pymupdf`) since
+real reports are usually uploaded as PDFs, not raw images — previously only image content
+types reached the recogniser.
+
+**Current state (2026-07-25):** across all 9 real PDFs, straight from the file (no manual
+pre-processing), the full pipeline extracts 71 biomarker rows with only 3 missing values,
+all documented, known, low-priority edge cases:
+- One OCR reading-order quirk splits a value onto an adjacent line for a single CBC row
+  (MCH) in one report — a Tesseract layout artifact, not reproduced elsewhere.
+- One report's eGFR simply has no result row in the source document (not a bug).
 - Thyroid Antibodies is not a supported v1 panel; the parser's short "tg" alias for
-  Triglycerides false-matches "Anti-Tg" on that report. Not fixed since the panel itself is
-  out of scope.
+  Triglycerides false-matches "Anti-Tg" there. Not fixed since the panel itself is out of
+  scope for v1.

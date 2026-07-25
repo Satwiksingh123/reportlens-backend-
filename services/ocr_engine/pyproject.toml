@@ -7,8 +7,9 @@ dependencies = ["numpy>=1.26", "pillow>=10.0"]
 
 [project.optional-dependencies]
 # Default production recogniser. Needs the system `tesseract` binary too (pre-installed on
-# Colab; `apt-get install tesseract-ocr` on Debian/Ubuntu hosts).
-ocr = ["pytesseract>=0.3.10"]
+# Colab; `apt-get install tesseract-ocr` on Debian/Ubuntu hosts). Includes PyMuPDF for
+# PDF -> page-image conversion, since most real report uploads are PDFs, not raw images.
+ocr = ["pytesseract>=0.3.10", "pymupdf>=1.24"]
 # Heavy training/inference stack for the optional fine-tuned TrOCR path. Kept separate so
 # the package stays light for CI and the API container.
 train = [

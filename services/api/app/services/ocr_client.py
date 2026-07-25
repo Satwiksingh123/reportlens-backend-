@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 _SERVICES = Path(__file__).resolve().parents[3]
 _IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/tiff"}
+_PDF_TYPE = "application/pdf"
 
 _STUB_TEXT = (
     "Complete Blood Count (CBC)\n"
@@ -62,14 +63,28 @@ def _get_recognizer():
 
 def extract_text(path: str, content_type: str) -> str:
     recognizer = _get_recognizer()
-    if recognizer is None or content_type not in _IMAGE_TYPES:
+    if recognizer is None or content_type not in (_IMAGE_TYPES | {_PDF_TYPE}):
         return _STUB_TEXT
     try:
         _bootstrap_ocr_engine()
-        from ocr_engine.infer import extract_text_from_image
+        if content_type == _PDF_TYPE:
+            text = _extract_from_pdf(path, recognizer)
+        else:
+            from ocr_engine.infer import extract_text_from_image
 
-        text = extract_text_from_image(path, recognizer)
+            text = extract_text_from_image(path, recognizer)
         return text or _STUB_TEXT
     except Exception as exc:  # noqa: BLE001 - never let OCR crash the pipeline
         logger.warning("OCR failed on %s (%s); falling back to stub", path, exc)
         return _STUB_TEXT
+
+
+def _extract_from_pdf(path: str, recognizer) -> str:
+    """Render every PDF page to an image and recognise each (most real report uploads
+    are PDFs, not raw images). Page texts are joined with a blank line."""
+    from ocr_engine.infer import extract_text_from_pil
+    from ocr_engine.pdf_utils import pdf_to_images
+
+    pages = pdf_to_images(path)
+    texts = [extract_text_from_pil(page, recognizer) for page in pages]
+    return "\n\n".join(t for t in texts if t.strip())

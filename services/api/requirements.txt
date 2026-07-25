@@ -14,3 +14,4 @@ httpx==0.27.2
 numpy==2.1.1  # required by the sibling rag package (grounding retriever)
 pillow==10.4.0  # OCR pipeline image handling
 pytesseract==0.3.13  # OCR recogniser (needs the tesseract-ocr system binary)
+pymupdf==1.24.11  # PDF -> page image conversion (most report uploads are PDFs)

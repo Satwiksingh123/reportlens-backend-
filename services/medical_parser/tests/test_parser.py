@@ -145,6 +145,20 @@ def test_cholesterol_hdl_ratio_not_confused_with_total_cholesterol():
     assert p.value == "6.2"
 
 
+def test_pending_test_not_fabricated_as_a_result():
+    # A number appearing near a "not yet received" style note must not be turned into
+    # a fake result (with a fake Low/High status) for a test that was never actually run.
+    line = "Blood Sugar - Post Prandial (Glucose PP), 2 Hrs : Sample not yet received"
+    assert parse_line(line) is None
+
+    text = f"""
+    Cholesterol 192 mg/dL < 200
+    {line}
+    """
+    rows = parse_report(text)
+    assert "Postprandial Blood Sugar" not in [r.test_name for r in rows]
+
+
 def test_bare_cholesterol_label_matches_total_cholesterol():
     # Some reports print just "Cholesterol", not "Total Cholesterol".
     p = parse_line("Cholesterol 192 mg/dL < 200")

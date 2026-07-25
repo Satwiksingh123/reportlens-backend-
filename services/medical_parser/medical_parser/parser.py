@@ -43,6 +43,22 @@ _RANGE_INTERVAL = re.compile(
 _RANGE_UPPER = re.compile(rf"[<≤]\s*(?P<high>{_NUM})")
 _RANGE_LOWER = re.compile(rf"[>≥]\s*(?P<low>{_NUM})")
 
+# Phrases indicating a test was requested but has no actual result yet. Real reports
+# routinely include a line like "Blood Sugar - PP, 2 Hrs : Sample not yet received" -
+# without this guard, a stray number nearby (here "2 Hrs") would be fabricated into a
+# fake result (and even a fake Low/High status), which is unacceptable for a medical tool.
+_NO_RESULT_PHRASES = (
+    "not yet received", "not received", "sample rejected", "sample not collected",
+    "quantity not sufficient", "qns", "results awaited", "result awaited",
+    "not performed", "not done", "test cancelled", "sample pending",
+)
+
+
+def _has_no_result(line: str) -> bool:
+    lowered = line.lower()
+    return any(phrase in lowered for phrase in _NO_RESULT_PHRASES)
+
+
 # Units we recognise, longest first so "mg/dL" wins over "dL".
 _UNITS = sorted(
     [
@@ -149,6 +165,8 @@ def classify_status(
 
 
 def parse_line(line: str, sex: str | None = None) -> ParsedBiomarker | None:
+    if _has_no_result(line):
+        return None
     match = _match_biomarker(line)
     if match is None:
         return None

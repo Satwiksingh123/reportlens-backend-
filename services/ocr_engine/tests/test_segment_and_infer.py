@@ -7,6 +7,7 @@ tests need no torch/model — they verify the layout + assembly logic.
 
 import json
 
+import pytest
 from PIL import Image, ImageDraw
 
 from ocr_engine import StubRecognizer, extract_text_from_image, segment_lines
@@ -93,6 +94,24 @@ def test_extract_is_line_level():
     img = _make_page(["Sodium        141"])
     text = extract_text_from_pil(img, StubRecognizer(token="W"))
     assert text == "W"
+
+
+def test_pdf_to_images_renders_each_page(tmp_path):
+    from ocr_engine.pdf_utils import pdf_to_images
+
+    try:
+        import fitz  # noqa: F401
+    except ImportError:
+        pytest.skip("pymupdf not installed in this environment")
+
+    page1 = _make_page(["Hemoglobin 11.2"])
+    page2 = _make_page(["WBC 11500"])
+    pdf_path = tmp_path / "two_page.pdf"
+    page1.convert("RGB").save(pdf_path, "PDF", save_all=True, append_images=[page2.convert("RGB")])
+
+    images = pdf_to_images(pdf_path)
+    assert len(images) == 2
+    assert all(im.size[0] > 0 and im.size[1] > 0 for im in images)
 
 
 def test_tesseract_recognizer_reads_text_if_installed():
