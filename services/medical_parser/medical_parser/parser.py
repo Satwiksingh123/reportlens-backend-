@@ -202,16 +202,25 @@ def _fmt(x: float) -> str:
 def parse_report(raw_text: str, sex: str | None = None) -> list[ParsedBiomarker]:
     """Parse full OCR text into structured biomarkers.
 
-    De-duplicates by canonical test name, keeping the first occurrence.
+    De-duplicates by canonical test name, preferring the first occurrence that has an
+    actual measured value. Some real report layouts print the test name twice: once as
+    a bare section heading (e.g. "HEMOGLOBIN", no number) and again on the real data row
+    ("Hemoglobin (Hb) 12.5 Low 13.0-17.0 g/dL"). Naively keeping only the very first
+    match would silently keep the valueless heading and drop the real result.
     """
-    seen: set[str] = set()
-    results: list[ParsedBiomarker] = []
+    by_name: dict[str, ParsedBiomarker] = {}
+    order: list[str] = []
     for line in raw_text.splitlines():
         line = line.strip()
         if not line:
             continue
         parsed = parse_line(line, sex=sex)
-        if parsed and parsed.test_name not in seen:
-            seen.add(parsed.test_name)
-            results.append(parsed)
-    return results
+        if not parsed:
+            continue
+        existing = by_name.get(parsed.test_name)
+        if existing is None:
+            by_name[parsed.test_name] = parsed
+            order.append(parsed.test_name)
+        elif existing.value is None and parsed.value is not None:
+            by_name[parsed.test_name] = parsed
+    return [by_name[name] for name in order]

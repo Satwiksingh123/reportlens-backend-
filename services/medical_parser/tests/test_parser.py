@@ -105,3 +105,49 @@ def test_parse_report_dedup_and_multiline():
     assert names.count("Hemoglobin") == 1
     assert "WBC Count" in names
     assert "Platelet Count" in names
+
+
+# --- regressions found by testing against real (publicly published sample) lab reports ---
+
+
+def test_dedup_prefers_valued_row_over_bare_heading():
+    # Some real report layouts print a bare section heading (no number) before the
+    # actual data row. Keeping only the first match would silently keep the heading
+    # and drop the real value.
+    text = """
+    HEMOGLOBIN
+    Hemoglobin (Hb) 12.5 Low 13.0-17.0 g/dL
+    """
+    rows = parse_report(text)
+    hb = next(r for r in rows if r.test_name == "Hemoglobin")
+    assert hb.value == "12.5"
+    assert hb.status == "Low"
+
+
+def test_t3_t4_reversed_comma_order():
+    # Real reports print "T3, TOTAL" (reversed word order + comma) rather than our
+    # "total t3" phrase alias.
+    p3 = parse_line("T3, TOTAL 350.00 High 80.00 - 200.00 ng/dL")
+    assert p3.test_name == "T3 Total"
+    assert p3.value == "350.00"
+    assert p3.status == "High"
+
+    p4 = parse_line("T4, TOTAL 28.50 High 4.50 - 12.50 mcg/dL")
+    assert p4.test_name == "T4 Total"
+    assert p4.value == "28.50"
+
+
+def test_cholesterol_hdl_ratio_not_confused_with_total_cholesterol():
+    # "Total Cholesterol/HDL Ratio" contains "total cholesterol" as a true substring;
+    # it must match the ratio biomarker, not plain Total Cholesterol.
+    p = parse_line("Total Cholesterol/HDL 6.2 0.0-4.9")
+    assert p.test_name == "Cholesterol/HDL Ratio"
+    assert p.value == "6.2"
+
+
+def test_bare_cholesterol_label_matches_total_cholesterol():
+    # Some reports print just "Cholesterol", not "Total Cholesterol".
+    p = parse_line("Cholesterol 192 mg/dL < 200")
+    assert p.test_name == "Total Cholesterol"
+    assert p.value == "192"
+    assert p.status == "Normal"

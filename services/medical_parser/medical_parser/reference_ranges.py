@@ -73,18 +73,29 @@ REFERENCE_TABLE: list[BiomarkerRef] = [
     BiomarkerRef("KFT", "eGFR", "mL/min/1.73m2", 90.0, None, ("gfr", "estimated gfr")),
 
     # ---------- Lipid Profile ----------
-    BiomarkerRef("Lipid Profile", "Total Cholesterol", "mg/dL", None, 200.0, ("cholesterol total", "t.cholesterol")),
+    # bare "cholesterol" (real reports sometimes print just "Cholesterol", not "Total
+    # Cholesterol") is safe here: HDL/LDL/VLDL/Non-HDL Cholesterol all have a longer,
+    # more specific alias that wins first under the longest-key-first matching order.
+    BiomarkerRef("Lipid Profile", "Total Cholesterol", "mg/dL", None, 200.0, ("cholesterol total", "t.cholesterol", "cholesterol")),
     BiomarkerRef("Lipid Profile", "Triglycerides", "mg/dL", None, 150.0, ("tg", "trig")),
     BiomarkerRef("Lipid Profile", "HDL Cholesterol", "mg/dL", 40.0, None, ("hdl", "hdl-c")),
     BiomarkerRef("Lipid Profile", "LDL Cholesterol", "mg/dL", None, 100.0, ("ldl", "ldl-c")),
     BiomarkerRef("Lipid Profile", "VLDL Cholesterol", "mg/dL", 5.0, 40.0, ("vldl",)),
     BiomarkerRef("Lipid Profile", "Non-HDL Cholesterol", "mg/dL", None, 130.0, ("non hdl",)),
-    BiomarkerRef("Lipid Profile", "Cholesterol/HDL Ratio", None, None, 5.0, ("chol hdl ratio",)),
+    # "total cholesterol/hdl" is deliberately longer than plain Total Cholesterol's
+    # "total cholesterol" key, so a printed "Total Cholesterol/HDL Ratio" row (which
+    # contains "total cholesterol" as a true substring) matches the ratio, not the
+    # plain total, under the longest-key-first matching order.
+    BiomarkerRef("Lipid Profile", "Cholesterol/HDL Ratio", None, None, 5.0, ("chol hdl ratio", "total cholesterol/hdl", "cholesterol/hdl")),
 
     # ---------- Thyroid Profile ----------
     BiomarkerRef("Thyroid Profile", "TSH", "uIU/mL", 0.4, 4.0, ("thyroid stimulating hormone",)),
-    BiomarkerRef("Thyroid Profile", "T3 Total", "ng/dL", 80.0, 200.0, ("total t3", "triiodothyronine")),
-    BiomarkerRef("Thyroid Profile", "T4 Total", "ug/dL", 5.1, 14.1, ("total t4", "thyroxine")),
+    # bare "t3"/"t4": real reports print "T3, TOTAL" (reversed word order from our
+    # "total t3" alias, with a comma), which the phrase-based aliases don't match. Safe
+    # as a fallback since "free t3"/"free t4" have longer, more specific keys that win
+    # first under longest-key-first matching.
+    BiomarkerRef("Thyroid Profile", "T3 Total", "ng/dL", 80.0, 200.0, ("total t3", "triiodothyronine", "t3")),
+    BiomarkerRef("Thyroid Profile", "T4 Total", "ug/dL", 5.1, 14.1, ("total t4", "thyroxine", "t4")),
     BiomarkerRef("Thyroid Profile", "Free T3", "pg/mL", 2.0, 4.4, ("ft3",)),
     BiomarkerRef("Thyroid Profile", "Free T4", "ng/dL", 0.9, 1.7, ("ft4",)),
 
