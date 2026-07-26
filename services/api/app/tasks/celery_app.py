@@ -14,6 +14,10 @@ celery_app.conf.update(
     result_serializer="json",
     accept_content=["json"],
     task_track_started=True,
+    # Local/dev escape hatch: run tasks in-process instead of needing Redis + a worker.
+    # Off by default; see Settings.celery_task_always_eager.
+    task_always_eager=settings.celery_task_always_eager,
+    task_eager_propagates=settings.celery_task_always_eager,
 )
 
 # ensure tasks are registered

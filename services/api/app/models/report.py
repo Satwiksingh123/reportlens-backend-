@@ -1,11 +1,16 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+# JSONB on PostgreSQL (indexable, binary-stored), plain JSON elsewhere. Keeps the
+# production behaviour identical while letting the app run on SQLite for local
+# development / tests, where JSONB doesn't exist and would fail at DDL time.
+_JSON = JSON().with_variant(JSONB(), "postgresql")
 
 
 class ReportStatus(enum.StrEnum):
@@ -56,6 +61,6 @@ class StructuredResult(Base):
     reference_range: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Low/Normal/High
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
-    evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # RAG source refs
+    evidence: Mapped[dict | None] = mapped_column(_JSON, nullable=True)  # RAG source refs
 
     report: Mapped["Report"] = relationship(back_populates="results")
