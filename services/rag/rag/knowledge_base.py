@@ -175,6 +175,34 @@ KNOWLEDGE_BASE: list[KBDoc] = [
           "affect the heart rhythm, so abnormal values are reviewed promptly with a clinician. "
           "Some kidney conditions and medicines affect potassium levels.",
           "MedlinePlus"),
+    KBDoc("elec-cl", "Chloride", "Electrolytes",
+          "Chloride works with sodium to maintain the body's fluid balance and the acid-base "
+          "balance of the blood. Levels usually shift alongside sodium and hydration status, so "
+          "it is interpreted together with the other electrolytes rather than on its own.",
+          "MedlinePlus"),
+    KBDoc("elec-hco3", "Bicarbonate", "Electrolytes",
+          "Bicarbonate reflects the acid-base balance of the blood, which the lungs and kidneys "
+          "regulate together. Levels outside the usual range can relate to breathing or kidney "
+          "function, or to prolonged vomiting or diarrhoea, and are interpreted with the rest of "
+          "the panel by a doctor.",
+          "MedlinePlus"),
+    KBDoc("elec-ca", "Calcium", "Electrolytes",
+          "Calcium supports bones and teeth as well as nerve, muscle and heart function. Blood "
+          "calcium is tightly controlled by hormones and vitamin D, so an abnormal level points "
+          "more often to those systems than to diet. Dairy products, leafy greens and fortified "
+          "foods are common dietary sources.",
+          "MedlinePlus"),
+    KBDoc("elec-mg", "Magnesium", "Electrolytes",
+          "Magnesium is involved in muscle and nerve function, blood-sugar regulation and bone "
+          "health. Low levels can relate to poor intake, alcohol use, or some medicines and "
+          "digestive conditions. Nuts, seeds, legumes, whole grains and leafy greens are good "
+          "dietary sources.",
+          "MedlinePlus"),
+    KBDoc("elec-phos", "Phosphorus", "Electrolytes",
+          "Phosphorus works with calcium to build bones and teeth and is involved in how the body "
+          "stores and uses energy. Levels are regulated by the kidneys and by vitamin D, so "
+          "abnormal values are usually interpreted alongside calcium and kidney function.",
+          "MedlinePlus"),
 
     # ---------------- Panel-level fallbacks ----------------
     KBDoc("panel-cbc", None, "CBC",

@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
 
+    # Run pipeline tasks in-process instead of dispatching to a Celery worker. Lets the
+    # full upload -> OCR -> parse -> explain path be exercised locally without Redis or a
+    # separate worker (e.g. on a dev machine with no Docker). Never enable in production:
+    # it makes the upload request block until the whole pipeline finishes.
+    celery_task_always_eager: bool = False
+
     jwt_secret_key: str = "changeme-generate-a-real-secret"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
