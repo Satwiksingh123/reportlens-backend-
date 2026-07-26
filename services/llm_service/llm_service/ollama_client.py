@@ -36,8 +36,19 @@ class OllamaClient:
         return resp.json().get("response", "").strip()
 
     def is_available(self) -> bool:
+        """True only if the server is up AND the configured model is actually present.
+
+        Checking the model matters: a running Ollama with the model not pulled would
+        otherwise pass this check, then fail on every single biomarker's generate() call -
+        turning one fast up-front check into N slow failures before the caller falls back.
+        """
         try:
-            httpx.get(f"{self.base_url}/api/tags", timeout=2.0).raise_for_status()
-            return True
-        except httpx.HTTPError:
+            resp = httpx.get(f"{self.base_url}/api/tags", timeout=2.0)
+            resp.raise_for_status()
+            names = [m.get("name", "") for m in resp.json().get("models", [])]
+        except (httpx.HTTPError, ValueError):
             return False
+        # Ollama reports names tag-qualified ("qwen2.5:3b"); accept an untagged config
+        # value ("qwen2.5") as matching any tag of that model.
+        wanted = self.model
+        return any(n == wanted or n.split(":")[0] == wanted.split(":")[0] for n in names)
