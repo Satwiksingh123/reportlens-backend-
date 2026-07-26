@@ -57,7 +57,14 @@ def upload_report(
     # kick off async pipeline
     from app.tasks.pipeline import process_report
 
-    process_report.delay(report.id)
+    if settings.celery_task_always_eager:
+        # .delay() still builds a broker connection even in eager mode (Celery resolves the
+        # transport before checking the eager flag), which fails outright when no broker is
+        # installed/reachable. .apply() runs the task inline without touching the broker -
+        # the whole point of eager mode for local runs.
+        process_report.apply(args=[report.id])
+    else:
+        process_report.delay(report.id)
     return report
 
 
