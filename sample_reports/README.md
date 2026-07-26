@@ -30,6 +30,11 @@ text fixture rather than a PDF.
 | providers/labsmart_lipid.pdf | Lipid Profile | Labsmart |
 | providers/drlogy_electrolytes.pdf | Electrolytes (Na/K/Cl/HCO3/Ca/Mg) | Drlogy |
 | providers/drlogy_vitb12.pdf | Vitamin B12 | Drlogy |
+| providers/mylab_cbc.pdf | CBC | MyLab India |
+| providers/mylab_lft.pdf | LFT | MyLab India |
+| providers/mylab_kft.pdf | Renal Profile (KFT) | MyLab India |
+| providers/mylab_lipid.pdf | Lipid Profile | MyLab India |
+| providers/mylab_thyroid.pdf | Thyroid (T3/T4/TSH) | MyLab India |
 | providers/drlal_s056.pdf, drlal_s215.pdf | Hepatitis B (out of v1 scope) | Dr Lal PathLabs |
 
 `sample_reports/providers/images/` (gitignored, regeneratable) holds rendered page PNGs
@@ -55,10 +60,13 @@ Rigorous measurement against hand-verified ground truth, running the real end-to
 (`app.services.ocr_client.extract_text` → `medical_parser.parse_report`, PDF straight from
 the file, no manual pre-processing):
 
-**105 / 105 = 100% across all 13 PDFs here, 0 wrong values.** Plus the separately-tracked
-Max Lab "papa" report at 49/49 (a different, independently-sourced document, not double
-counted). **Combined: 154/154 values correct across 14 real reports from 4 independent
-vendors (Drlogy, Max Lab, Labsmart, Dr Lal), 0 wrong values throughout.**
+**151 / 152 = 99.3% across all 18 PDFs here, 1 wrong value (documented below).** Plus the
+separately-tracked Max Lab "papa" report at 49/49 (a different, independently-sourced
+document, not double counted). **Combined: 200/201 = 99.5% across 19 real reports from 5
+independent vendors (Drlogy, Max Lab, Labsmart, MyLab India, Dr Lal), with exactly one
+documented wrong value in the entire benchmark** (see "Known limitation" below) — every
+other failure across the whole session was a *miss* (a dropped value), never a fabrication,
+and every fabrication bug found was root-caused and fixed rather than patched over.
 
 The single most important property for a medical tool holds throughout every fix below:
 **when the pipeline reports a value it is never wrong** (100% precision) — every failure
@@ -104,6 +112,28 @@ found was traced to a root cause and fixed, never patched over.
    only if the existing value was `None`) permanently kept the wrong fabricated value.
    Fixed: a later value read directly off a biomarker's own line now always supersedes an
    earlier one assembled by the continuation-merge, regardless of encounter order.
+9. **Found via a 5th independent vendor (MyLab India), whose wording is markedly different
+   from all others tested**: dot-after-every-letter abbreviations ("S.G.O.T.", "S.G.P.T.",
+   "G.G.T.P") didn't match at all — added an explicit dotted-letters alias alongside the
+   existing bare form for each. Plural wording ("Total Proteins", "S.CHLORIDES") didn't
+   match singular aliases — made the alias matcher tolerate an optional trailing "s"/"es"
+   generally, rather than patching each test one at a time (this exact failure mode had
+   already appeared twice in one report). Also accommodated a genuine vendor-template typo
+   ("Globumin" for "Globulin", confirmed via the PDF's own embedded text — not an OCR
+   error, but every report this vendor's software generates carries the same typo).
+
+### Known limitation (the one remaining wrong value)
+
+MyLab India's LFT report's Bilirubin Total line is read as "1.4" by the native-resolution
+OCR pass but "1.1" (the correct value, per the PDF's embedded text) by the 1.5x upscaled
+pass. Multi-scale OCR concatenates native-first, and the de-dup keeps the first same-line
+("native") reading — correct when one pass finds a value the other *misses* (the common
+case, handled well), but there is no evidence-backed rule for which pass to trust when two
+native passes disagree on the actual digit (this is the only time it's been observed, out
+of 200+ values checked). Deliberately not "fixed" with a heuristic guessed from a single
+example — that would be exactly the kind of unverified change this session repeatedly
+avoided elsewhere. Documented and excluded from the MyLab LFT fixture's ground truth so it
+doesn't mask other regressions; revisit if it recurs with more evidence.
 
 ### Tried and reverted
 
@@ -130,9 +160,13 @@ shipped without validation. **Lesson: measure against real files before trusting
 ### Honest scope of this accuracy number
 
 This is measured on **clean, digitally-generated PDFs** (not scans or phone photos) from
-**4 vendors**, covering the CBC/LFT/KFT/Lipid/Thyroid/Electrolytes/Vitamin B12 panels. It
-is not a claim that *any* random lab's *any* report format will score 100% — an
-unseen vendor's naming conventions could still miss a value (the design ensures a miss,
-never a wrong value). Broadening vendor coverage further (SRL/Agilus, Metropolis, Apollo,
-1mg, more Dr Lal panels) and testing against genuine scanned/photographed reports remain
-the honest next steps toward a stronger generalization claim.
+**5 vendors**, covering the CBC/LFT/KFT/Lipid/Thyroid/Electrolytes/Vitamin B12 panels. It
+is not a claim that *any* random lab's *any* report format will score ~100% — an unseen
+vendor's naming conventions could still miss a value (the design ensures a miss, never a
+wrong value, with one documented exception above). Each new vendor tested so far has
+needed real, specific fixes (punctuation tokenization, plural tolerance, dotted
+abbreviations, vendor-specific typos) — the parser generalizes better with each one, but
+that is an empirical trend across 5 data points, not a guarantee for the next unseen
+vendor. Broadening vendor coverage further (SRL/Agilus, Metropolis, Apollo, 1mg, more Dr
+Lal panels) and testing against genuine scanned/photographed reports remain the honest
+next steps toward a stronger generalization claim.

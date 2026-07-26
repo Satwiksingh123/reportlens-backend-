@@ -24,14 +24,16 @@ _ALIAS_INDEX = all_aliases()
 # punctuation variants ("Bilirubin (Total)"), "a/g ratio" matches "A.G. ratio", and
 # "glucose fasting" matches "Glucose (Fasting)". Leading/trailing boundaries keep short
 # abbreviations (na, k, cl, hb) matching only as standalone tokens, never inside words like
-# "Name" or "kidney". Sorted longest-first (by token character count) so the most specific
-# alias wins (e.g. "glycosylated haemoglobin" beats bare "haemoglobin").
+# "Name" or "kidney". An optional trailing "s"/"es" tolerates plural report wording
+# ("Total Proteins", "S.CHLORIDES") without a separate alias per test. Sorted longest-first
+# (by token character count) so the most specific alias wins (e.g. "glycosylated
+# haemoglobin" beats bare "haemoglobin").
 def _key_pattern(key: str) -> re.Pattern:
     tokens = re.findall(r"[a-z0-9]+", key.lower())
     if not tokens:
         return re.compile(r"(?!x)x")  # matches nothing
     body = r"[\W_]+".join(re.escape(t) for t in tokens)
-    return re.compile(rf"(?<![a-z0-9]){body}(?![a-z0-9])")
+    return re.compile(rf"(?<![a-z0-9]){body}(?:es|s)?(?![a-z0-9])")
 
 
 _KEY_PATTERNS: list[tuple[str, re.Pattern]] = sorted(

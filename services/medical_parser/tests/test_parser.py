@@ -225,6 +225,19 @@ def test_value_on_following_line_is_merged():
     assert rows.get("MCHC") == "33.0"
 
 
+def test_dot_separated_abbreviations_match():
+    # A real vendor (MyLab India) prints a dot after every letter of the abbreviation.
+    assert parse_line("S.G.O.T. 48.6 U/L Up to 46 U/L").test_name == "SGOT (AST)"
+    assert parse_line("S.G.P.T. 51.3 IU/L Up to 49 U/L").test_name == "SGPT (ALT)"
+    assert parse_line("G.G.T.P 28 IU/L 25 - 43 IU/L").test_name == "GGT"
+
+
+def test_plural_wording_matches_singular_alias():
+    # Real reports sometimes pluralize a test name ("Total Proteins", "S.CHLORIDES").
+    assert parse_line("Total Proteins 7.2 gm/dl 6.0-8.3").test_name == "Total Protein"
+    assert parse_line("S.CHLORIDES 21.5 mEq/L 98-107").test_name == "Chloride"
+
+
 def test_punctuation_variants_match_across_labs():
     # Real labs punctuate the same test differently than our phrase aliases; matching
     # must be robust to parens/dots/commas between the same words.
