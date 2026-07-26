@@ -62,7 +62,9 @@ REFERENCE_TABLE: list[BiomarkerRef] = [
     # "(ALP)" tag (seen as "(ALF)"), leaving "Alkaline" as the only reliable anchor. Safe -
     # no other v1 biomarker contains the word "alkaline".
     BiomarkerRef("LFT", "Alkaline Phosphatase", "U/L", 44.0, 147.0, ("alp", "alk phos", "alkaline")),
-    BiomarkerRef("LFT", "Total Protein", "g/dL", 6.0, 8.3, ("protein total",)),
+    # bare "protein": some reports print just "Serum Protein", not "Total Protein". Safe -
+    # no other v1 biomarker contains the word "protein".
+    BiomarkerRef("LFT", "Total Protein", "g/dL", 6.0, 8.3, ("protein total", "protein")),
     BiomarkerRef("LFT", "Albumin", "g/dL", 3.5, 5.2, ("alb",)),
     BiomarkerRef("LFT", "Globulin", "g/dL", 2.0, 3.5, ()),
     BiomarkerRef("LFT", "A/G Ratio", None, 1.0, 2.1, ("albumin globulin ratio",)),

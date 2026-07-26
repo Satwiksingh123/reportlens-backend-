@@ -107,19 +107,32 @@ def _to_float(raw: str) -> float | None:
         return None
 
 
-def _match_biomarker(name_part: str) -> tuple[list[BiomarkerRef], int] | None:
-    """Return (matching reference entries, end index of the matched name in the line).
+def _match_biomarker(name_part: str) -> tuple[list[BiomarkerRef], int, str] | None:
+    """Return (matching reference entries, end index of the matched name in the line, the
+    alias key that matched).
 
     Prefers the longest matching alias so 'total t3' beats 't3'. The end index lets
     the caller search for the measured value AFTER the name, so digits inside names
-    (T3, B12, 25-OH, HbA1c) are never mistaken for the value.
+    (T3, B12, 25-OH, HbA1c) are never mistaken for the value. The matched key is exposed
+    so callers can gate riskier behaviour (like cross-line continuation merging) on how
+    specific the match was - very short bare aliases (k, na, cl, fe, ca, hb) are real
+    chemistry shorthand but also collide with ordinary text (a doctor's "A. K." initial,
+    OCR noise), so they should never trigger speculative multi-line absorption.
     """
     text = name_part.lower()
     for key, pattern in _KEY_PATTERNS:  # already longest-first
         m = pattern.search(text)
         if m:
-            return _ALIAS_INDEX[key], m.end()
+            return _ALIAS_INDEX[key], m.end(), key
     return None
+
+
+# Aliases at or below this length are treated as "risky shorthand": real, but too easily
+# matched inside unrelated text (name initials, page furniture, OCR noise) to be trusted
+# for continuation-line merging - they must find their value on the same line. 2 excludes
+# single/double-letter chemistry shorthand (k, na, cl, ca, fe, hb) while still allowing
+# genuine 3-letter test names that DO need the merge (MCH, RDW).
+_RISKY_SHORT_KEY_LEN = 2
 
 
 def _pick_ref(refs: list[BiomarkerRef], sex: str | None) -> BiomarkerRef:
@@ -186,7 +199,7 @@ def parse_line(line: str, sex: str | None = None) -> ParsedBiomarker | None:
     match = _match_biomarker(line)
     if match is None:
         return None
-    refs, name_end = match
+    refs, name_end, _key = match
 
     # The measured value is the first number that appears AFTER the biomarker name,
     # so digits embedded in the name are never picked up.
@@ -233,12 +246,6 @@ def _fmt(x: float) -> str:
     return str(int(x)) if x.is_integer() else str(x)
 
 
-def _has_value_after_name(line: str) -> bool:
-    """True if `line` matches a biomarker AND has a numeric value after the name."""
-    m = _match_biomarker(line)
-    return bool(m and re.search(_NUM, line[m[1] :]))
-
-
 def _merge_continuation_lines(lines: list[str]) -> list[str]:
     """Re-join a biomarker whose value landed on a following line.
 
@@ -248,12 +255,20 @@ def _merge_continuation_lines(lines: list[str]) -> list[str]:
     ("Triglycerides" / "100.00" / "< 150.00"). When a biomarker-name line has no value,
     absorb following non-biomarker lines until (and including) the first one bearing a
     number, stopping early if the next line is itself a different biomarker.
+
+    Gated on match specificity (`_RISKY_SHORT_KEY_LEN`): a bare short alias like "k" or
+    "fe" matching inside unrelated text (a doctor's "A. K." initial, OCR noise near a
+    logo) must never go hunting down the page for a number to fabricate as its value -
+    it can only ever report a value from its own line.
     """
     merged: list[str] = []
     i = 0
     while i < len(lines):
         line = lines[i]
-        if _match_biomarker(line) and not _has_value_after_name(line):
+        m = _match_biomarker(line)
+        eligible = m is not None and len(m[2]) > _RISKY_SHORT_KEY_LEN
+        has_value = bool(m and _VALUE_NUM.search(line[m[1] :]))
+        if eligible and not has_value:
             combined = line
             j = i + 1
             while j < len(lines):
@@ -262,7 +277,7 @@ def _merge_continuation_lines(lines: list[str]) -> list[str]:
                     break
                 combined += " " + nxt
                 j += 1
-                if re.search(_NUM, nxt):  # absorbed the value; stop
+                if _VALUE_NUM.search(nxt):  # absorbed the value; stop
                     break
             merged.append(combined)
             i = j
