@@ -63,7 +63,11 @@ services:
       - ./services/ocr_engine/ocr_engine:/opt/packages/ocr_engine:ro
       - ./services/rag/rag:/opt/packages/rag:ro
       - ./services/llm_service/llm_service:/opt/packages/llm_service:ro
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # Migrations run here so a plain `docker compose up` yields a working app. Without this
+    # the database has no tables and the first request 500s. Safe to repeat: alembic upgrade
+    # is a no-op once the schema is current, and only the api service does it (the worker
+    # would otherwise race it).
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   worker:
     build:

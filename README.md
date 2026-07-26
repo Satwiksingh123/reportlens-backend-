@@ -39,20 +39,45 @@ Examination.
 
 ## Local development
 
-### With Docker (Postgres + Redis + a Celery worker)
+### With Docker (the whole stack)
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres redis
-cd services/api
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload
-# in a second shell:
-celery -A app.tasks.celery_app worker --loglevel=info
+docker compose up -d --build
 ```
 
-Full stack: `docker compose up --build`.
+That's it — the API is on http://localhost:8000 (docs at `/docs`). The `api` service runs
+`alembic upgrade head` before uvicorn, so the schema is created on first start.
+
+Services: `postgres`, `redis`, `ollama`, `api` (uvicorn), `worker` (Celery). Only the API
+publishes a host port; Ollama is reachable to the other containers as `http://ollama:11434`
+but deliberately not exposed to the host, so it can't collide with a locally installed Ollama.
+
+For real LLM explanations, pull a model into the Ollama container once (it persists in the
+`ollama_models` volume). Without it, explanations fall back to deterministic templates and
+the pipeline still works end to end:
+
+```bash
+docker compose exec ollama ollama pull qwen2.5:3b
+# then set OLLAMA_MODEL=qwen2.5:3b in .env and: docker compose up -d api worker
+```
+
+Useful checks:
+
+```bash
+docker compose ps                 # health of each service
+docker compose logs -f api        # or: worker
+docker compose down              # stop (add -v to also drop the DB volume)
+```
+
+If you prefer running the app on the host and only its dependencies in Docker:
+
+```bash
+docker compose up -d postgres redis
+cd services/api && pip install -r requirements.txt
+alembic upgrade head && uvicorn app.main:app --reload
+celery -A app.tasks.celery_app worker --loglevel=info   # second shell
+```
 
 ### Without Docker (SQLite + in-process pipeline)
 
