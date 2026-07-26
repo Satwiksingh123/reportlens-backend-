@@ -221,8 +221,14 @@ def _value_before_range(line: str, name_end: int, range_span: tuple[int, int] | 
     Requiring the value to sit strictly before the range's span turns each of those into a
     safe miss. A genuine value that happens to equal a range bound is unaffected, because it
     is a separate, earlier token (e.g. "Hemoglobin 13.00 Normal 13.00 - 17.00" still parses).
+
+    The cut-off only applies to a range printed AFTER the test name. A layout that prints the
+    range first would otherwise leave no searchable region at all and lose every value, so in
+    that case the whole tail is searched as before.
     """
-    limit = range_span[0] if range_span is not None else len(line)
+    limit = len(line)
+    if range_span is not None and range_span[0] > name_end:
+        limit = range_span[0]
     for m in _VALUE_NUM.finditer(line, name_end):
         if m.start() >= limit:
             break  # we've reached the printed range; no separate value exists

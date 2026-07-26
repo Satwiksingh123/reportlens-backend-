@@ -157,6 +157,54 @@ shipped without validation. **Lesson: measure against real files before trusting
   short "tg" alias for Triglycerides false-matches "Anti-Tg" on the Thyroid Antibodies
   report. Not fixed since those panels are out of scope for v1.
 
+## Photographed / scanned pages (2026-07-26)
+
+Every number above is for a clean digital PDF. Real users photograph a report instead, and
+that path was completely untested — so `ocr_engine/photo_sim.py` simulates a phone capture
+(perspective warp, rotation, uneven lighting, blur, sensor noise, JPEG round-trip) at three
+severities, and `ocr_engine/preprocess.py` corrects the two things OCR is most sensitive to
+(skew, uneven lighting).
+
+Value-level accuracy over 4 real reports × 3 simulated captures per level:
+
+| capture | no preprocessing | with preprocessing |
+|---|---|---|
+| clean PDF render | 100.0% (0 wrong) | **100.0% (0 wrong)** |
+| light (careful, well-lit) | 87.9% (2 wrong) | **99.0% (1 wrong)** |
+| moderate (typical handheld) | 91.9% (3 wrong) | **100.0% (0 wrong)** |
+| harsh (hurried, poor light) | 75.8% (9 wrong) | **99.0% (0 wrong)** |
+
+Preprocessing is therefore enabled unconditionally in `infer.extract_text_from_pil`. The
+clean row is what made that safe: it leaves an already-clean render exactly as accurate, so
+there is no need to guess "is this a photo?" (`deskew` self-skips a page already measured at
+0.0° of skew). It costs real time though — the harsh row took 381 s versus 218 s without.
+
+**A safety bug this exposed.** On degraded pages OCR sometimes loses the value column, and
+the parser then reported the *reference range's own lower bound* as the measurement, with a
+plausible status attached:
+
+    T3 Total  -> 80.00  (its range is "80.00 - 200.00";  true value 350.00)
+    T4 Total  -> 4.50   (range "4.50 - 12.50";           true value 28.50)
+    RBC Count -> 4.50   (range "4.50 - 5.50";            true value 6.50)
+
+Those are wrong values, not misses — the one failure mode this pipeline must not have, and it
+never appeared on clean PDFs. Fixed in `medical_parser`: a value must lie strictly before the
+printed range's character span, otherwise it is `None`. Verified it does not break a genuine
+value that coincides with a range bound (`Hemoglobin (Hb) 13.00 Normal 13.00 - 17.00` → 13.00,
+a real row), one-sided ranges (`< 200`, `> 40`), or a layout that prints the range first.
+
+The `wrong` counts in the table were measured with the *pre-fix* parser, so they show what
+preprocessing alone achieves. The parser fix is defence-in-depth for the cases where OCR
+still drops a value.
+
+**Honest limits of this experiment:** a simulation is a lower bound, not a substitute for
+real photos — it models geometry, optics, sensor/codec noise and lighting, but not rolling
+shutter, screen glare, motion streaks, or a phone's own auto-enhancement. Testing against
+genuinely photographed reports is still the honest next step. Also note the first version of
+this measurement used a single seed per level and produced a nonsensical non-monotonic result
+(light 84.8% but moderate 100%) — it was measuring one random draw rather than the level;
+the numbers above average three seeds.
+
 ### Honest scope of this accuracy number
 
 This is measured on **clean, digitally-generated PDFs** (not scans or phone photos) from
