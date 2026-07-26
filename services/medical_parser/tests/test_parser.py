@@ -145,6 +145,20 @@ def test_cholesterol_hdl_ratio_not_confused_with_total_cholesterol():
     assert p.value == "6.2"
 
 
+def test_native_value_beats_merged_value_regardless_of_order():
+    # Real bug: a heading with no value on its own line ("VITAMIN B12 (CYANOCOBALAMIN)")
+    # triggers continuation-merge, which can absorb an unrelated stray number from
+    # boilerplate BEFORE the real result line appears ("Sample Type Serum (3 ml)..." has a
+    # "3"). The later, same-line ("native") reading must win even though it comes second.
+    text = (
+        "VITAMIN B12 (CYANOCOBALAMIN)\n"
+        "Sample Type Serum (3 ml) TAT: 2hrs (Normal: 1 - 3 hrs)\n"
+        "VITAMIN B12 (CYANOCOBALAMIN) 452.00 Normal 200.00 - 900.00 pg/mL\n"
+    )
+    rows = {r.test_name: r.value for r in parse_report(text)}
+    assert rows.get("Vitamin B12") == "452.00"
+
+
 def test_bare_short_alias_never_fabricates_value_from_unrelated_text():
     # Real bug found via a real report: "K" (Potassium) and "Fe" (Serum Iron) matched
     # inside a doctor's name initial and OCR noise near a logo, with no number on that

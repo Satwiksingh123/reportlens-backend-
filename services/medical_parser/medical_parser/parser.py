@@ -246,7 +246,7 @@ def _fmt(x: float) -> str:
     return str(int(x)) if x.is_integer() else str(x)
 
 
-def _merge_continuation_lines(lines: list[str]) -> list[str]:
+def _merge_continuation_lines(lines: list[str]) -> list[tuple[str, bool]]:
     """Re-join a biomarker whose value landed on a following line.
 
     Some layouts (and some OCR page-segmentation modes) put a test's name on one line
@@ -260,8 +260,14 @@ def _merge_continuation_lines(lines: list[str]) -> list[str]:
     "fe" matching inside unrelated text (a doctor's "A. K." initial, OCR noise near a
     logo) must never go hunting down the page for a number to fabricate as its value -
     it can only ever report a value from its own line.
+
+    Returns (line, was_merged) pairs - the caller uses `was_merged` to prefer a value
+    read directly off a biomarker's own line over one assembled by this absorption, since
+    absorption can still occasionally grab an unrelated stray number from boilerplate
+    text following a genuine heading (e.g. a heading immediately followed by "Sample
+    Type Serum (3 ml)..." before the real result line appears further down).
     """
-    merged: list[str] = []
+    merged: list[tuple[str, bool]] = []
     i = 0
     while i < len(lines):
         line = lines[i]
@@ -279,10 +285,10 @@ def _merge_continuation_lines(lines: list[str]) -> list[str]:
                 j += 1
                 if _VALUE_NUM.search(nxt):  # absorbed the value; stop
                     break
-            merged.append(combined)
+            merged.append((combined, True))
             i = j
         else:
-            merged.append(line)
+            merged.append((line, False))
             i += 1
     return merged
 
@@ -290,26 +296,44 @@ def _merge_continuation_lines(lines: list[str]) -> list[str]:
 def parse_report(raw_text: str, sex: str | None = None) -> list[ParsedBiomarker]:
     """Parse full OCR text into structured biomarkers.
 
-    De-duplicates by canonical test name, preferring the first occurrence that has an
-    actual measured value. Some real report layouts print the test name twice: once as
-    a bare section heading (e.g. "HEMOGLOBIN", no number) and again on the real data row
-    ("Hemoglobin (Hb) 12.5 Low 13.0-17.0 g/dL"). Naively keeping only the very first
-    match would silently keep the valueless heading and drop the real result. A
-    continuation-line merge first re-joins values that OCR split onto the next line.
+    De-duplicates by canonical test name. Some real report layouts print the test name
+    twice: once as a bare section heading (e.g. "HEMOGLOBIN", no number) and again on the
+    real data row ("Hemoglobin (Hb) 12.5 Low 13.0-17.0 g/dL") - a continuation-line merge
+    re-joins values OCR split onto the next line, so the heading isn't left valueless.
+
+    Priority when the same test name is seen more than once:
+      1. any value beats no value;
+      2. a value read directly off the biomarker's own line ("native") always beats one
+         assembled by the continuation merge, regardless of which was seen first - the
+         merge can occasionally absorb an unrelated stray number from boilerplate text
+         following a genuine heading, and a native reading is always more trustworthy;
+      3. otherwise, the first occurrence wins.
     """
     lines = [ln.strip() for ln in raw_text.splitlines() if ln.strip()]
-    lines = _merge_continuation_lines(lines)
+    merged = _merge_continuation_lines(lines)
 
     by_name: dict[str, ParsedBiomarker] = {}
+    native_value: dict[str, bool] = {}
     order: list[str] = []
-    for line in lines:
+    for line, was_merged in merged:
         parsed = parse_line(line, sex=sex)
         if not parsed:
             continue
-        existing = by_name.get(parsed.test_name)
+        name = parsed.test_name
+        existing = by_name.get(name)
         if existing is None:
-            by_name[parsed.test_name] = parsed
-            order.append(parsed.test_name)
-        elif existing.value is None and parsed.value is not None:
-            by_name[parsed.test_name] = parsed
+            by_name[name] = parsed
+            native_value[name] = parsed.value is not None and not was_merged
+            order.append(name)
+            continue
+        if parsed.value is None:
+            continue
+        if existing.value is None:
+            by_name[name] = parsed
+            native_value[name] = not was_merged
+        elif not native_value[name] and not was_merged:
+            # existing value was only ever assembled by the merge; a same-line reading
+            # supersedes it even though the merged one arrived first.
+            by_name[name] = parsed
+            native_value[name] = True
     return [by_name[name] for name in order]
