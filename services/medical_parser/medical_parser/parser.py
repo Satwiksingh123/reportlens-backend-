@@ -19,15 +19,24 @@ from medical_parser.reference_ranges import BiomarkerRef, all_aliases
 
 _ALIAS_INDEX = all_aliases()
 
-# Precompile a boundary-aware matcher per alias key so short abbreviations (na, k, cl,
-# hb) match only as standalone tokens, never as substrings of ordinary words like
-# "Name" or "kidney". Boundaries are non-alphanumeric (so "na+" / "hdl-c" still work).
+# Precompile a matcher per alias key. Each key is split into alphanumeric tokens joined by
+# "one or more non-word chars", so a key like "bilirubin total" also matches real-report
+# punctuation variants ("Bilirubin (Total)"), "a/g ratio" matches "A.G. ratio", and
+# "glucose fasting" matches "Glucose (Fasting)". Leading/trailing boundaries keep short
+# abbreviations (na, k, cl, hb) matching only as standalone tokens, never inside words like
+# "Name" or "kidney". Sorted longest-first (by token character count) so the most specific
+# alias wins (e.g. "glycosylated haemoglobin" beats bare "haemoglobin").
+def _key_pattern(key: str) -> re.Pattern:
+    tokens = re.findall(r"[a-z0-9]+", key.lower())
+    if not tokens:
+        return re.compile(r"(?!x)x")  # matches nothing
+    body = r"[\W_]+".join(re.escape(t) for t in tokens)
+    return re.compile(rf"(?<![a-z0-9]){body}(?![a-z0-9])")
+
+
 _KEY_PATTERNS: list[tuple[str, re.Pattern]] = sorted(
-    (
-        (key, re.compile(rf"(?<![a-z0-9]){re.escape(key)}(?![a-z0-9])"))
-        for key in _ALIAS_INDEX
-    ),
-    key=lambda kv: len(kv[0]),
+    ((key, _key_pattern(key)) for key in _ALIAS_INDEX),
+    key=lambda kv: len(re.sub(r"[^a-z0-9]", "", kv[0].lower())),
     reverse=True,
 )
 
@@ -35,6 +44,13 @@ _KEY_PATTERNS: list[tuple[str, re.Pattern]] = sorted(
 # listed first and requires at least one comma group, so a plain "13000" is not
 # truncated to "130" by the grouped alternative.
 _NUM = r"[-+]?\d{1,3}(?:,\d{3})+(?:\.\d+)?|[-+]?\d+(?:\.\d+)?"
+
+# Value search must not start inside an existing alphanumeric token (letter OR digit right
+# before it) - real report title lines often repeat the test's own abbreviation in
+# parentheses right after the name ("Vitamin B12 (Vit- B12) (Cyanocobalamin)"), and
+# B12/T3/T4/D3/A1c-style tokens would otherwise have their digits misread as the value
+# (the lookbehind must guard the WHOLE alternation, hence the wrapping non-capturing group).
+_VALUE_NUM = re.compile(rf"(?<![A-Za-z0-9])(?:{_NUM})")
 
 # Printed reference range variants: "13.0-17.0", "13 to 17", "< 200", "> 40"
 _RANGE_INTERVAL = re.compile(
@@ -175,7 +191,7 @@ def parse_line(line: str, sex: str | None = None) -> ParsedBiomarker | None:
     # The measured value is the first number that appears AFTER the biomarker name,
     # so digits embedded in the name are never picked up.
     tail = line[name_end:]
-    value_match = re.search(_NUM, tail)
+    value_match = _VALUE_NUM.search(tail)
     value_raw = value_match.group(0) if value_match else None
     value = _to_float(value_raw) if value_raw else None
 

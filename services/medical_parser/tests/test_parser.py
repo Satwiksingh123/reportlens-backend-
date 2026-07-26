@@ -197,6 +197,30 @@ def test_value_on_following_line_is_merged():
     assert rows.get("MCHC") == "33.0"
 
 
+def test_punctuation_variants_match_across_labs():
+    # Real labs punctuate the same test differently than our phrase aliases; matching
+    # must be robust to parens/dots/commas between the same words.
+    assert parse_line("Bilirubin (Total) 1.58 mg/dl 0.3 - 1.2").test_name == "Bilirubin Total"
+    assert parse_line("A.G. ratio 1.9 1.2 - 1.5").test_name == "A/G Ratio"
+    assert parse_line("Glucose (Fasting) 94.3 mg/dl 74 - 99").test_name == "Fasting Blood Sugar"
+    assert parse_line("25 Hydroxy, Vitamin D 6.7 ng/mL 30-100").test_name == "Vitamin D (25-OH)"
+
+
+def test_value_not_read_from_glued_abbreviation_in_heading():
+    # A title line repeating the test's own abbreviation ("Vit- B12") must not have that
+    # abbreviation's digits mistaken for a measured value.
+    p = parse_line("Vitamin B12 (Vit- B12) (Cyanocobalamin)")
+    assert p.value is None
+
+
+def test_hba1c_not_confused_with_plain_hemoglobin():
+    # "Glycosylated Haemoglobin(Hb A1c)" contains the word "Haemoglobin" (the CBC test's
+    # own alias) - HbA1c's aliases must be specific enough to win.
+    p = parse_line("Glycosylated Haemoglobin(Hb A1c) 5.60 % < 5.7")
+    assert p.test_name == "HbA1c"
+    assert p.value == "5.60"
+
+
 def test_two_column_label_then_value_merged():
     # A detached two-column layout: label, value, printed range on separate lines.
     text = "Triglycerides\n100.00\n< 150.00\nHDL Cholesterol\n50.00"

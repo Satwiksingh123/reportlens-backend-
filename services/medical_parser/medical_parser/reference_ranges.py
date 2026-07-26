@@ -109,7 +109,17 @@ REFERENCE_TABLE: list[BiomarkerRef] = [
     BiomarkerRef("Blood Sugar", "Fasting Blood Sugar", "mg/dL", 70.0, 100.0, ("fbs", "glucose fasting", "fasting glucose")),
     BiomarkerRef("Blood Sugar", "Postprandial Blood Sugar", "mg/dL", 70.0, 140.0, ("pp", "ppbs", "glucose pp", "post prandial")),
     BiomarkerRef("Blood Sugar", "Random Blood Sugar", "mg/dL", 70.0, 140.0, ("rbs", "glucose random")),
-    BiomarkerRef("Blood Sugar", "HbA1c", "%", 4.0, 5.6, ("glycated hemoglobin", "a1c", "hba1c")),
+    # "glycosylated h(a)emoglobin" variants must be long/specific enough to win over bare
+    # "hemoglobin" (the CBC test) when both words appear on the same line - real reports
+    # print "Glycosylated Haemoglobin(Hb A1c)".
+    BiomarkerRef(
+        "Blood Sugar", "HbA1c", "%", 4.0, 5.6,
+        (
+            "glycated hemoglobin", "glycated haemoglobin",
+            "glycosylated hemoglobin", "glycosylated haemoglobin",
+            "a1c", "hba1c",
+        ),
+    ),
 
     # ---------- Vitamin D ----------
     BiomarkerRef("Vitamin D", "Vitamin D (25-OH)", "ng/mL", 30.0, 100.0, ("25 hydroxy vitamin d", "25-oh vitamin d", "vit d")),
