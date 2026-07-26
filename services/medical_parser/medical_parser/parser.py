@@ -158,17 +158,30 @@ def _widened_interval(refs: list[BiomarkerRef]) -> tuple[float | None, float | N
     return low, high
 
 
-def _extract_printed_range(text: str) -> tuple[float | None, float | None, str | None]:
+_RangeMatch = tuple[float | None, float | None, str | None, tuple[int, int] | None]
+
+
+def _find_printed_range(text: str) -> _RangeMatch:
+    """Printed reference range plus the character span it occupies in `text`.
+
+    The span lets the caller reject a "value" that is really just the range's own first
+    number - see _value_before_range().
+    """
     m = _RANGE_INTERVAL.search(text)
     if m:
-        return _to_float(m["low"]), _to_float(m["high"]), f"{m['low']}-{m['high']}"
+        return _to_float(m["low"]), _to_float(m["high"]), f"{m['low']}-{m['high']}", m.span()
     m = _RANGE_UPPER.search(text)
     if m:
-        return None, _to_float(m["high"]), f"<{m['high']}"
+        return None, _to_float(m["high"]), f"<{m['high']}", m.span()
     m = _RANGE_LOWER.search(text)
     if m:
-        return _to_float(m["low"]), None, f">{m['low']}"
-    return None, None, None
+        return _to_float(m["low"]), None, f">{m['low']}", m.span()
+    return None, None, None, None
+
+
+def _extract_printed_range(text: str) -> tuple[float | None, float | None, str | None]:
+    low, high, printed, _span = _find_printed_range(text)
+    return low, high, printed
 
 
 def _extract_unit(text: str) -> str | None:
@@ -195,6 +208,28 @@ def classify_status(
     return "Normal"
 
 
+def _value_before_range(line: str, name_end: int, range_span: tuple[int, int] | None) -> str | None:
+    """First number after the biomarker name that is NOT part of the printed range.
+
+    A well-formed row reads: name, measured value, [status], reference range, unit. When OCR
+    drops the value column (common on photographed pages), the first number left after the
+    name is the RANGE's own lower bound - and reporting that as the measurement is a wrong
+    value, not a miss. Observed on degraded images: "T3 Total ... 80.00 - 200.00 ng/dL"
+    yielded value=80.00 when the true result was 350.00; likewise T4 -> 4.50 (range
+    "4.50 - 12.50") and RBC Count -> 4.50 (range "4.50 - 5.50").
+
+    Requiring the value to sit strictly before the range's span turns each of those into a
+    safe miss. A genuine value that happens to equal a range bound is unaffected, because it
+    is a separate, earlier token (e.g. "Hemoglobin 13.00 Normal 13.00 - 17.00" still parses).
+    """
+    limit = range_span[0] if range_span is not None else len(line)
+    for m in _VALUE_NUM.finditer(line, name_end):
+        if m.start() >= limit:
+            break  # we've reached the printed range; no separate value exists
+        return m.group(0)
+    return None
+
+
 def parse_line(line: str, sex: str | None = None) -> ParsedBiomarker | None:
     if _has_no_result(line):
         return None
@@ -203,16 +238,15 @@ def parse_line(line: str, sex: str | None = None) -> ParsedBiomarker | None:
         return None
     refs, name_end, _key = match
 
-    # The measured value is the first number that appears AFTER the biomarker name,
-    # so digits embedded in the name are never picked up.
-    tail = line[name_end:]
-    value_match = _VALUE_NUM.search(tail)
-    value_raw = value_match.group(0) if value_match else None
+    p_low, p_high, printed, range_span = _find_printed_range(line)
+
+    # The measured value is the first number after the biomarker name and before the printed
+    # reference range, so neither digits inside the name nor the range itself are mistaken
+    # for the measurement.
+    value_raw = _value_before_range(line, name_end, range_span)
     value = _to_float(value_raw) if value_raw else None
 
     unit = _extract_unit(line) or refs[0].unit
-
-    p_low, p_high, printed = _extract_printed_range(line)
     if printed is not None:
         low, high, ref_str = p_low, p_high, printed
     elif sex:

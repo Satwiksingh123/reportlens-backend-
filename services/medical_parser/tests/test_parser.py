@@ -145,6 +145,37 @@ def test_cholesterol_hdl_ratio_not_confused_with_total_cholesterol():
     assert p.value == "6.2"
 
 
+def test_range_lower_bound_is_never_reported_as_the_measured_value():
+    """When OCR drops the value column, the range's own first number must not become the
+    result. Found by running the pipeline on simulated phone photos: three biomarkers came
+    back with their reference range's lower bound as the "measurement" (T3 80.00 instead of
+    350.00, T4 4.50 instead of 28.50, RBC 4.50 instead of 6.50) - wrong values, not misses,
+    which is the one failure mode this project must not have.
+    """
+    for line in [
+        "T3, TOTAL 80.00 - 200.00 ng/dL",
+        "T4, TOTAL 4.50 - 12.50 mcg/dL",
+        "Total RBC count 4.50 - 5.50 mill/cumm",
+    ]:
+        p = parse_line(line)
+        assert p is not None, line
+        assert p.value is None, f"{line!r} fabricated value {p.value!r} from its own range"
+        assert p.status is None
+
+
+def test_value_equal_to_its_range_bound_still_parses():
+    # The guard must not reject a genuine measurement that coincides with a range bound -
+    # this exact row appears in a real report.
+    p = parse_line("Hemoglobin (Hb) 13.00 Normal 13.00 - 17.00 g/dL")
+    assert p.value == "13.00"
+    assert p.status == "Normal"
+
+
+def test_one_sided_ranges_still_extract_their_value():
+    assert parse_line("Cholesterol 192 mg/dL < 200").value == "192"
+    assert parse_line("HDL Cholesterol 31.0 mg/dL > 40").value == "31.0"
+
+
 def test_native_value_beats_merged_value_regardless_of_order():
     # Real bug: a heading with no value on its own line ("VITAMIN B12 (CYANOCOBALAMIN)")
     # triggers continuation-merge, which can absorb an unrelated stray number from
