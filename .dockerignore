@@ -1,0 +1,24 @@
+# The build context is the repo root (the API image needs the sibling service packages),
+# so exclude everything that would bloat it or leak local state into the image.
+
+.git
+.github
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/tests
+
+# local secrets / state - env vars come from compose's env_file at runtime, not the image
+.env
+*.db
+**/uploads
+
+# large artefacts and docs that the running service never reads
+sample_reports
+notebooks
+**/models
+**/*.pdf
+**/*.png
+**/*.jpg

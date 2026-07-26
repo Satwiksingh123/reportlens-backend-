@@ -36,3 +36,14 @@ Thumbs.db
 # logs
 *.log
 logs/
+
+# Uploaded reports. UPLOAD_DIR defaults to /app/uploads, and docker-compose bind-mounts
+# services/api to /app - so real users' lab reports land inside the working tree. They are
+# patient data and must never be committed.
+uploads/
+services/api/uploads/
+
+# local SQLite databases (the no-Docker dev path) - also contain report data
+*.db
+*.sqlite
+*.sqlite3
