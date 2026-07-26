@@ -145,6 +145,20 @@ def test_cholesterol_hdl_ratio_not_confused_with_total_cholesterol():
     assert p.value == "6.2"
 
 
+def test_bare_short_alias_never_fabricates_value_from_unrelated_text():
+    # Real bug found via a real report: "K" (Potassium) and "Fe" (Serum Iron) matched
+    # inside a doctor's name initial and OCR noise near a logo, with no number on that
+    # line - the continuation-merge must NOT go hunting down the page for a value to
+    # attach to these bare short aliases (a signature block, a page number, anything
+    # else nearby could otherwise be fabricated into a fake medical result).
+    text = "Mr. Sachin Sharma Dr. A. K. Asthana\nDMLT, Lab Incharge Page 1 of 2"
+    rows = parse_report(text)
+    potassium = next((r for r in rows if r.test_name == "Potassium"), None)
+    # a spurious match is tolerable (it may still surface with no value); a FABRICATED
+    # value borrowed from unrelated nearby text (e.g. "Page 1 of 2") is not.
+    assert potassium is None or potassium.value is None
+
+
 def test_pending_test_not_fabricated_as_a_result():
     # A number appearing near a "not yet received" style note must not be turned into
     # a fake result (with a fake Low/High status) for a test that was never actually run.
@@ -211,6 +225,19 @@ def test_value_not_read_from_glued_abbreviation_in_heading():
     # abbreviation's digits mistaken for a measured value.
     p = parse_line("Vitamin B12 (Vit- B12) (Cyanocobalamin)")
     assert p.value is None
+
+
+def test_mch_mchc_not_confused_with_plain_hemoglobin():
+    # "MEAN CELL HAEMOGLOBIN, MCH" / "... CON, MCHC" both contain the word "Haemoglobin"
+    # (Hemoglobin's own alias) - MCH/MCHC's aliases must be specific enough to win.
+    mch = parse_line("MEAN CELL HAEMOGLOBIN, MCH 30.0 Pg 27 - 32")
+    assert mch.test_name == "MCH"
+    assert mch.value == "30.0"
+
+    mchc = parse_line("MEAN CELL HAEMOGLOBIN CON, MCHC 35.7 % 31.5 - 34.5")
+    assert mchc.test_name == "MCHC"
+    assert mchc.value == "35.7"
+    assert mchc.status == "High"
 
 
 def test_hba1c_not_confused_with_plain_hemoglobin():

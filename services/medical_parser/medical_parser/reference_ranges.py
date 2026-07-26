@@ -41,8 +41,26 @@ REFERENCE_TABLE: list[BiomarkerRef] = [
     BiomarkerRef("CBC", "Hematocrit", "%", 40.0, 50.0, ("hct", "pcv", "packed cell volume"), "M"),
     BiomarkerRef("CBC", "Hematocrit", "%", 36.0, 46.0, ("hct", "pcv", "packed cell volume"), "F"),
     BiomarkerRef("CBC", "MCV", "fL", 83.0, 101.0, ("mean corpuscular volume",)),
-    BiomarkerRef("CBC", "MCH", "pg", 27.0, 32.0, ("mean corpuscular hemoglobin",)),
-    BiomarkerRef("CBC", "MCHC", "g/dL", 31.5, 34.5, ("mean corpuscular hemoglobin concentration",)),
+    # "cell" (not "corpuscular") + British "haemoglobin" variants: some reports print
+    # "MEAN CELL HAEMOGLOBIN, MCH" / "MEAN CELL HAEMOGLOBIN CON, MCHC". These must be
+    # longer/more specific than bare "haemoglobin" (Hemoglobin's own alias) or a line
+    # mentioning both words would be misread as a plain Hemoglobin result.
+    BiomarkerRef(
+        "CBC", "MCH", "pg", 27.0, 32.0,
+        (
+            "mean corpuscular hemoglobin", "mean corpuscular haemoglobin",
+            "mean cell hemoglobin", "mean cell haemoglobin",
+        ),
+    ),
+    BiomarkerRef(
+        "CBC", "MCHC", "g/dL", 31.5, 34.5,
+        (
+            "mean corpuscular hemoglobin concentration",
+            "mean corpuscular haemoglobin concentration",
+            "mean cell hemoglobin concentration", "mean cell haemoglobin concentration",
+            "mean cell hemoglobin con", "mean cell haemoglobin con",
+        ),
+    ),
     # "row" is a real OCR misread of "RDW" (the D/W glyphs read as O/blank) seen on real
     # reports; safe in this domain (no lab line legitimately reads "row <number> %").
     BiomarkerRef("CBC", "RDW", "%", 11.6, 14.0, ("red cell distribution width", "row")),
