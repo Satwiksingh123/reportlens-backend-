@@ -62,6 +62,22 @@ docker compose exec ollama ollama pull qwen2.5:3b
 # then set OLLAMA_MODEL=qwen2.5:3b in .env and: docker compose up -d api worker
 ```
 
+**Tight on disk?** The `ollama/ollama` image plus a pulled model needs several GB, which can
+choke a host with only a few GB free (this was measured to hang the Docker Desktop VM
+outright on a ~7GB-free machine — the pull died mid-transfer and the VM stopped responding
+to anything, needing a full Docker Desktop restart to recover). If you already have Ollama
+installed natively and running (`ollama serve`, with a model pulled), skip the `ollama`
+service entirely and point the containers at the host instead:
+
+```bash
+# .env: OLLAMA_BASE_URL=http://host.docker.internal:11434
+docker compose up -d postgres redis api worker   # omit "ollama" from the service list
+```
+
+`host.docker.internal` is how a container reaches the Windows/Mac host on Docker Desktop.
+Verified working end-to-end this way: real PDF → OCR → parser → RAG → the host's Ollama →
+guardrails → stored result, all through the actual Dockerized api/worker/postgres/redis.
+
 Useful checks:
 
 ```bash
