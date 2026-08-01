@@ -36,10 +36,12 @@ test('a real report is analysed end to end and rendered correctly', async ({ pag
   await registerAndLogin(page);
   await uploadAndAwaitResults(page, sampleReport('drlogy_vitb12.pdf'));
 
-  // the actual measured value from this report, not a placeholder
-  await expect(page.getByText('452.00', { exact: false })).toBeVisible();
+  // The actual measured value from this report, not a placeholder. .first() because the
+  // number legitimately appears twice - once as the value and again inside the explanation
+  // sentence - and either occurrence proves it was parsed and rendered.
+  await expect(page.getByText('452.00').first()).toBeVisible();
   await expect(page.getByText('Vitamin B12').first()).toBeVisible();
-  await expect(page.getByText('Reference:', { exact: false })).toBeVisible();
+  await expect(page.getByText('Reference:', { exact: false }).first()).toBeVisible();
 
   // safety: the disclaimer the backend bakes into every explanation must reach the screen
   await expect(

@@ -40,6 +40,18 @@ Examination.
 
 ## Local development
 
+### Quickest start (no Docker)
+
+```bash
+./scripts/dev.sh
+```
+
+Migrates a local SQLite database, starts the API on http://localhost:8000 with the pipeline
+running on a background thread, and the frontend on **http://localhost:5173**. Ctrl-C stops
+both. Needs Python deps installed (`pip install -r services/api/requirements.txt`) and the
+`tesseract` binary; Ollama is optional (without it, explanations fall back to deterministic
+template text and everything else still works).
+
 ### With Docker (the whole stack)
 
 ```bash

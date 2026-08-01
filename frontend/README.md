@@ -25,6 +25,25 @@ backend's default already includes `http://localhost:5173`.
   processing, then shows the summary and per-biomarker results).
 - `src/components/` — presentational pieces (status badges, the processing-steps stepper,
   the upload dropzone, a result card).
+- `e2e/` — Playwright tests that drive a real browser against a real running stack.
+
+## End-to-end tests
+
+```bash
+npm run test:e2e            # headless
+npm run test:e2e:headed     # watch it happen in a browser
+npx playwright test e2e/auth.spec.ts   # just the fast auth specs
+```
+
+Both servers must already be running (`./scripts/dev.sh` from the repo root does that).
+Nothing is mocked: these exist because every bug they were written for — a dev server bound
+only to IPv6, an upload that blocked on the whole OCR+LLM pipeline, a "session expired"
+message shown for a mistyped password — was invisible to unit and HTTP-level tests and only
+appeared in a real browser.
+
+`auth.spec.ts` is fast (~30s). `report-flow.spec.ts` runs real reports through OCR and a
+local LLM, so it takes minutes; `PIPELINE_TIMEOUT_MS` overrides the timeout if your machine
+is slower.
 
 ## Notes
 

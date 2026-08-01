@@ -15,6 +15,19 @@ export const uniqueEmail = () =>
 
 export const PASSWORD = 'secret12345';
 
+/**
+ * Wait until the dashboard is genuinely loaded.
+ *
+ * Deliberately not `getByText('Your reports')`: the login page's footer also starts "Your
+ * reports are processed by a self-hosted model...", so that matched while still logged out
+ * and let tests race ahead on a half-finished sign-in. Assert on the URL plus a control
+ * that only the dashboard has.
+ */
+export async function expectOnDashboard(page: Page) {
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('heading', { name: 'Your reports' })).toBeVisible();
+}
+
 /** Register a fresh account and land on the dashboard. */
 export async function registerAndLogin(page: Page, email = uniqueEmail()) {
   await page.goto('/');
@@ -22,7 +35,7 @@ export async function registerAndLogin(page: Page, email = uniqueEmail()) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page.getByText('Your reports')).toBeVisible();
+  await expectOnDashboard(page);
   return email;
 }
 
