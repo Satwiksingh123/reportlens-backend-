@@ -44,7 +44,14 @@ logs/
 uploads/
 services/api/uploads/
 
-# local SQLite databases (the no-Docker dev path) - also contain report data
+# local SQLite databases (the no-Docker dev path) - also contain report data.
+# -wal/-shm are the write-ahead-log sidecar files WAL mode creates next to the database.
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
+
+# Playwright artifacts
+frontend/test-results/
+frontend/playwright-report/

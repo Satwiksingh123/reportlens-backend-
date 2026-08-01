@@ -96,12 +96,22 @@ alembic upgrade head && uvicorn app.main:app --reload
 celery -A app.tasks.celery_app worker --loglevel=info   # second shell
 ```
 
-### Without Docker (SQLite + in-process pipeline)
+### Without Docker (SQLite + background-thread pipeline)
 
-For a quick run on a machine with no Docker/Postgres/Redis. `CELERY_TASK_ALWAYS_EAGER`
-runs the pipeline inline in the upload request instead of dispatching to a worker, so no
-broker is needed — the upload call blocks until OCR + parsing + explanation finish. Dev
-only; never enable it in production.
+For a quick run on a machine with no Docker/Postgres/Redis.
+
+`PIPELINE_MODE` decides how an upload's processing runs:
+
+| mode | what it does | use it for |
+|---|---|---|
+| `celery` (default) | dispatches to a Celery worker over Redis | production |
+| `thread` | runs on a background thread inside the API process | local dev without Redis |
+| `inline` | runs synchronously inside the upload request | tests |
+
+Use `thread` for local development, **not** `inline`. Both avoid needing Redis, but `inline`
+blocks the upload response until OCR *and* the LLM finish — tens of seconds to minutes — so
+the browser sits on "Uploading…" and the app looks hung. `thread` returns `201` immediately
+with status `uploaded`, and the frontend's normal poll-until-done flow shows live progress.
 
 ```bash
 cd services/api
@@ -115,8 +125,10 @@ pip install -r requirements.txt
 # Optional: real explanations instead of the deterministic fallback
 ollama pull qwen2.5:3b   # ~2 GB, CPU-friendly
 
+DATABASE_URL="sqlite:///./reportlens.db" alembic upgrade head
+
 DATABASE_URL="sqlite:///./reportlens.db" \
-CELERY_TASK_ALWAYS_EAGER=true \
+PIPELINE_MODE=thread \
 UPLOAD_DIR=./uploads \
 OLLAMA_MODEL=qwen2.5:3b \
 PYTHONPATH="../medical_parser:../rag:../llm_service:../ocr_engine" \

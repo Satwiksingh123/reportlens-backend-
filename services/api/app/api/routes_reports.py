@@ -54,27 +54,22 @@ def upload_report(
     db.commit()
     db.refresh(report)
 
-    # kick off async pipeline
-    from app.tasks.pipeline import process_report
+    # Kick off processing. How it runs (Celery worker / background thread / inline) is
+    # decided by pipeline_mode - see app.tasks.dispatch.
+    from app.tasks.dispatch import dispatch_pipeline
 
-    if settings.celery_task_always_eager:
-        # .delay() still builds a broker connection even in eager mode (Celery resolves the
-        # transport before checking the eager flag), which fails outright when no broker is
-        # installed/reachable. .apply() runs the task inline without touching the broker -
-        # the whole point of eager mode for local runs.
-        process_report.apply(args=[report.id])
-        # The task above commits its changes through ITS OWN session, so `report` here still
-        # holds the pre-task scalar values (status="uploaded", summary=None) captured by the
-        # db.refresh() above - stale in memory even though the DB row has moved on. Without
-        # this, the response was a genuinely inconsistent object: status "uploaded" but a
-        # fully populated `results` list (that relationship hadn't been touched yet, so
-        # accessing it during response serialization issued a fresh, post-task query, while
-        # the scalar columns quietly kept their old in-memory values). Re-fetching everything
-        # here makes the response reflect one consistent point in time - the actual state
-        # after the (now finished) pipeline run.
+    dispatch_pipeline(report.id)
+
+    if settings.pipeline_mode == "inline":
+        # Inline mode has already finished the whole pipeline by now, and it committed
+        # through its OWN session - so this `report` still holds the pre-run scalar values
+        # captured by the db.refresh() above. Without re-refreshing, the response is a
+        # genuinely inconsistent object: status "uploaded" and summary null, but a fully
+        # populated `results` list (that relationship hadn't been loaded yet, so serializing
+        # it issues a fresh post-run query while the scalar columns keep their stale
+        # in-memory values). Re-fetch so the response describes one point in time.
         db.refresh(report)
-    else:
-        process_report.delay(report.id)
+
     return report
 
 

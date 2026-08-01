@@ -5,7 +5,9 @@ ship while the suite stayed green:
   - user registration 500'd (passlib incompatible with modern bcrypt),
   - the schema couldn't be created outside PostgreSQL (JSONB used directly),
   - .delay() built a broker connection even in eager mode,
-  - Celery imported the redis result backend even in eager mode.
+  - Celery imported the redis result backend even in eager mode,
+  - and the upload endpoint blocked for the whole OCR+LLM run, which in a browser looks
+    exactly like a hung app (fixed by the "thread" pipeline mode - see test_pipeline_modes).
 None of those are visible from unit tests of the individual pieces - only from actually
 driving the API.
 
@@ -30,7 +32,9 @@ def client(tmp_path_factory):
     """A TestClient wired to a throwaway SQLite DB with the pipeline running inline."""
     tmp = tmp_path_factory.mktemp("upload_flow")
     os.environ["DATABASE_URL"] = f"sqlite:///{tmp / 'test.db'}"
-    os.environ["CELERY_TASK_ALWAYS_EAGER"] = "true"
+    # "inline" so the pipeline finishes within the upload request - the assertions below can
+    # then check the result deterministically instead of polling a background thread.
+    os.environ["PIPELINE_MODE"] = "inline"
     os.environ["UPLOAD_DIR"] = str(tmp / "uploads")
 
     # sibling service packages aren't installed in the api venv
@@ -96,11 +100,11 @@ def test_upload_runs_the_pipeline_and_returns_structured_results(client, auth_he
     upload_body = resp.json()
     report_id = upload_body["id"]
 
-    # In eager mode the pipeline has already finished by the time this response is built
+    # In inline mode the pipeline has already finished by the time this response is built
     # (process_report.apply() runs synchronously), so the upload response itself must already
     # be fully consistent - not a mix of stale and fresh fields. Caught for real: the endpoint
     # returned status="uploaded" with summary=None while `results` was already fully
-    # populated with explanations, because the eager task commits through its own session and
+    # populated with explanations, because the inline task commits through its own session and
     # the original ORM object's scalar columns don't pick that up until re-fetched, while the
     # `results` relationship (never loaded before that point) lazy-loads fresh on first access
     # during response serialization - a real inconsistent-snapshot bug, not a timing fluke.
@@ -108,8 +112,8 @@ def test_upload_runs_the_pipeline_and_returns_structured_results(client, auth_he
         f"upload response inconsistent: status={upload_body['status']!r} but "
         f"results={upload_body['results']!r}"
     )
-    assert upload_body["summary"], "upload response should already have a summary in eager mode"
-    assert upload_body["results"], "upload response should already have results in eager mode"
+    assert upload_body["summary"], "upload response should already have a summary in inline mode"
+    assert upload_body["results"], "upload response should already have results in inline mode"
 
     detail = client.get(f"/api/reports/{report_id}", headers=auth_headers)
     assert detail.status_code == 200

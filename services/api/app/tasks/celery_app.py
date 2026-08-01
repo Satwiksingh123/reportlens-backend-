@@ -4,26 +4,23 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# In eager mode the task runs inline and its return value comes straight back, so no
-# broker or result backend is involved. Configuring them anyway makes Celery import the
-# redis transport/backend modules at call time - which hard-fails when redis isn't
-# installed, defeating the point of a broker-free local run. Leave both unset instead.
-_eager = settings.celery_task_always_eager
+# Only the "celery" pipeline mode actually talks to a broker. In the other modes the task
+# body is invoked directly (see app.tasks.dispatch), so pointing Celery at a broker/result
+# backend it will never use is worse than useless: Celery imports the redis transport and
+# backend modules on first use, which hard-fails when redis isn't installed - the exact
+# situation those modes exist to support. Leave both unset there.
+_uses_broker = settings.pipeline_mode == "celery"
 
 celery_app = Celery(
     "reportlens",
-    broker=None if _eager else settings.celery_broker_url,
-    backend=None if _eager else settings.celery_result_backend,
+    broker=settings.celery_broker_url if _uses_broker else None,
+    backend=settings.celery_result_backend if _uses_broker else None,
 )
 celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
     task_track_started=True,
-    # Local/dev escape hatch: run tasks in-process instead of needing Redis + a worker.
-    # Off by default; see Settings.celery_task_always_eager.
-    task_always_eager=_eager,
-    task_eager_propagates=_eager,
 )
 
 # ensure tasks are registered

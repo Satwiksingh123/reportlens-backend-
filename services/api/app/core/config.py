@@ -1,6 +1,9 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PipelineMode = Literal["celery", "thread", "inline"]
 
 
 class Settings(BaseSettings):
@@ -15,11 +18,18 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
 
-    # Run pipeline tasks in-process instead of dispatching to a Celery worker. Lets the
-    # full upload -> OCR -> parse -> explain path be exercised locally without Redis or a
-    # separate worker (e.g. on a dev machine with no Docker). Never enable in production:
-    # it makes the upload request block until the whole pipeline finishes.
-    celery_task_always_eager: bool = False
+    # How an uploaded report's pipeline gets executed:
+    #   "celery" - dispatch to a Celery worker over Redis. Production, and the only mode
+    #              that survives an API restart or scales past one box.
+    #   "thread" - run it on a background thread inside the API process. For local dev with
+    #              no Redis/Docker: the upload still returns immediately with status
+    #              "uploaded", so the client's normal poll-until-done flow works unchanged.
+    #              Work is lost if the process dies mid-report - fine for dev, not for prod.
+    #   "inline" - run it synchronously inside the upload request. Only for tests, where
+    #              determinism beats responsiveness. In this mode the upload response blocks
+    #              for the entire OCR + LLM run (tens of seconds), which looks like a hung
+    #              app in a browser - that is exactly why it is not the dev default.
+    pipeline_mode: PipelineMode = "celery"
 
     jwt_secret_key: str = "changeme-generate-a-real-secret"
     jwt_algorithm: str = "HS256"
