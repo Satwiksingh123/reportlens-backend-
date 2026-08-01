@@ -22,6 +22,12 @@ jobs:
       - name: Lint
         run: ruff check .
       - name: Test
+        # This runner has no tesseract binary, so the OCR adapter would (correctly) refuse
+        # to produce a result at all. The stub is enabled ONLY here, for that reason - in a
+        # real deployment it must stay off, since it returns canned blood-count text that
+        # would otherwise be shown to a user as their own results.
+        env:
+          OCR_STUB_ENABLED: "true"
         run: pytest -q
 
   packages:

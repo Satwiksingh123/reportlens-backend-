@@ -93,6 +93,30 @@ test('one user cannot open another user\'s report', async ({ page }) => {
   await expect(page.getByText(/couldn't load this report/i)).toBeVisible();
 });
 
+test('an image with no readable results ends in a clear empty state, not a crash', async ({
+  page,
+}) => {
+  await registerAndLogin(page);
+
+  // A user photographing something that isn't a lab report is a real thing that will
+  // happen. The pipeline should complete normally and say so, rather than fail or render
+  // a blank results area. A 1x1 white PNG stands in for "nothing OCR can read".
+  const blankPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'not-a-report.png',
+    mimeType: 'image/png',
+    buffer: blankPng,
+  });
+  await page.waitForURL(/\/reports\/\d+/);
+
+  await expect(page.getByText(/couldn't extract any recognized values/i)).toBeVisible({
+    timeout: 120_000,
+  });
+});
+
 test('an unsupported file type is rejected with a clear message', async ({ page }) => {
   await registerAndLogin(page);
 

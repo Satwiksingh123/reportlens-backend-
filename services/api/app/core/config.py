@@ -38,9 +38,15 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"
 
-    # Path to a fine-tuned TrOCR model dir (from services/ocr_engine training). When unset
-    # or unavailable, the OCR client falls back to a deterministic stub.
+    # Path to a fine-tuned TrOCR model dir (from services/ocr_engine training). When unset,
+    # Tesseract is used.
     ocr_model_dir: str | None = None
+
+    # Return canned CBC text when no OCR engine is available, instead of failing the report.
+    # ONLY for tests/CI on machines without the tesseract binary. It must never be on in a
+    # real deployment: the canned text is a plausible-looking blood count, and serving it
+    # would present fabricated medical results to a user as if they were their own.
+    ocr_stub_enabled: bool = False
 
     upload_dir: str = "/app/uploads"
     max_upload_mb: int = 20

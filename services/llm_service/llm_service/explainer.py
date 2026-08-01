@@ -83,9 +83,24 @@ def explain_biomarkers(
     return enriched, summary
 
 
+NO_RESULTS_SUMMARY = (
+    "No lab values could be read from this document, so there is nothing to explain. "
+    "This usually means the upload wasn't a lab report, or the page was too blurred, "
+    "cropped, or dark to read - try a clearer photo or the original PDF."
+)
+
+
 def _build_summary(
     enriched: list[dict], abnormal: list[str], use_model: bool, client: OllamaClient | None
 ) -> str:
+    if not enriched:
+        # Never let "nothing was read" become "everything looks normal". The old fallback
+        # said "All measured values are within their reference ranges", which for a report
+        # that produced ZERO values tells the user their results are fine when the system
+        # never saw a single one. The model is deliberately not consulted here either -
+        # asked to summarise an empty list, it has nothing to ground on and will invent.
+        return f"{NO_RESULTS_SUMMARY} {DISCLAIMER}"
+
     if use_model and client is not None:
         try:
             raw = client.generate(SYSTEM_PROMPT, build_summary_prompt(enriched, abnormal))

@@ -2,7 +2,7 @@
 projects enriched rows safely onto StructuredResult columns."""
 
 from app.services.llm_client import _get_retriever, explain
-from app.services.ocr_client import extract_text
+from app.services.ocr_client import _STUB_TEXT
 from app.services.parser_client import parse
 from app.tasks.pipeline import _result_kwargs
 
@@ -15,7 +15,8 @@ def test_retriever_available_and_grounds_known_biomarker():
 
 
 def test_explain_attaches_evidence_from_rag():
-    rows = parse(extract_text("dummy.pdf", "application/pdf"))
+    # canned text directly - this is about RAG grounding, not about reading a file
+    rows = parse(_STUB_TEXT)
     enriched, _ = explain(rows)
     hb = next(r for r in enriched if r["test_name"] == "Hemoglobin")
     assert hb["evidence"] and "reference_notes" in hb["evidence"]
