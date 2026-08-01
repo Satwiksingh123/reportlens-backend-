@@ -69,7 +69,12 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     body,
   });
 
-  if (res.status === 401) {
+  // A 401 means two completely different things depending on the call. On an authenticated
+  // request the token is bad or expired, so log the user out. On the login endpoint it just
+  // means the password was wrong - hijacking that into "your session has expired" told users
+  // their session died when they never had one, which is exactly what a mistyped password
+  // does NOT need to say. There, let the server's own message through.
+  if (res.status === 401 && opts.auth !== false) {
     clearToken();
     onUnauthorized?.();
     throw new ApiError(401, "Your session has expired. Please log in again.");

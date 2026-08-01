@@ -40,9 +40,19 @@ export function AuthPage() {
           </p>
         </div>
 
-        <div className="mb-6 flex rounded-lg bg-slate-100 p-1 text-sm font-medium">
+        {/* Proper tab semantics, not two plain buttons: in login mode the switcher and the
+            submit button would otherwise both be a <button> reading "Log in", which is
+            genuinely ambiguous for screen-reader users (and for anything else selecting by
+            accessible name). role="tab" also gives assistive tech the selected state. */}
+        <div
+          role="tablist"
+          aria-label="Authentication mode"
+          className="mb-6 flex rounded-lg bg-slate-100 p-1 text-sm font-medium"
+        >
           <button
             type="button"
+            role="tab"
+            aria-selected={mode === "login"}
             onClick={() => setMode("login")}
             className={`flex-1 rounded-md py-1.5 transition-colors ${
               mode === "login" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
@@ -52,6 +62,8 @@ export function AuthPage() {
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={mode === "register"}
             onClick={() => setMode("register")}
             className={`flex-1 rounded-md py-1.5 transition-colors ${
               mode === "register" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
