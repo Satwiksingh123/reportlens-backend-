@@ -63,6 +63,16 @@ def upload_report(
         # installed/reachable. .apply() runs the task inline without touching the broker -
         # the whole point of eager mode for local runs.
         process_report.apply(args=[report.id])
+        # The task above commits its changes through ITS OWN session, so `report` here still
+        # holds the pre-task scalar values (status="uploaded", summary=None) captured by the
+        # db.refresh() above - stale in memory even though the DB row has moved on. Without
+        # this, the response was a genuinely inconsistent object: status "uploaded" but a
+        # fully populated `results` list (that relationship hadn't been touched yet, so
+        # accessing it during response serialization issued a fresh, post-task query, while
+        # the scalar columns quietly kept their old in-memory values). Re-fetching everything
+        # here makes the response reflect one consistent point in time - the actual state
+        # after the (now finished) pipeline run.
+        db.refresh(report)
     else:
         process_report.delay(report.id)
     return report

@@ -35,6 +35,15 @@ class Settings(BaseSettings):
     upload_dir: str = "/app/uploads"
     max_upload_mb: int = 20
 
+    # Comma-separated origins allowed to call the API from a browser (the frontend's dev
+    # server and, in production, its real domain). Defaults cover Vite's default ports so
+    # local frontend dev works with zero config.
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -24,8 +24,9 @@ models/checkpoints/
 *.sqlite3
 pgdata/
 
-# node (if any tooling scripts)
+# node (frontend + any tooling scripts)
 node_modules/
+frontend/dist/
 
 # IDE / OS
 .vscode/

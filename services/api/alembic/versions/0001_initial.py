@@ -26,6 +26,12 @@ report_status = sa.Enum(
     name="reportstatus",
 )
 
+# JSONB on PostgreSQL, plain JSON elsewhere - must match app/models/report.py's `_JSON`
+# exactly. A prior version of this migration used postgresql.JSONB() directly, which
+# fails to compile at all on SQLite ("can't render element of type JSONB"), breaking
+# `alembic upgrade head` for anyone following the no-Docker/SQLite dev path.
+evidence_type = sa.JSON().with_variant(postgresql.JSONB(), "postgresql")
+
 
 def upgrade() -> None:
     op.create_table(
@@ -65,7 +71,7 @@ def upgrade() -> None:
         sa.Column("reference_range", sa.String(length=128), nullable=True),
         sa.Column("status", sa.String(length=32), nullable=True),
         sa.Column("explanation", sa.Text(), nullable=True),
-        sa.Column("evidence", postgresql.JSONB(), nullable=True),
+        sa.Column("evidence", evidence_type, nullable=True),
     )
     op.create_index("ix_structured_results_report_id", "structured_results", ["report_id"])
 

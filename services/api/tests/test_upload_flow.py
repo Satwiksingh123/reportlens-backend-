@@ -93,7 +93,23 @@ def test_upload_runs_the_pipeline_and_returns_structured_results(client, auth_he
             files={"file": (pdf.name, f, "application/pdf")},
         )
     assert resp.status_code == 201, resp.text
-    report_id = resp.json()["id"]
+    upload_body = resp.json()
+    report_id = upload_body["id"]
+
+    # In eager mode the pipeline has already finished by the time this response is built
+    # (process_report.apply() runs synchronously), so the upload response itself must already
+    # be fully consistent - not a mix of stale and fresh fields. Caught for real: the endpoint
+    # returned status="uploaded" with summary=None while `results` was already fully
+    # populated with explanations, because the eager task commits through its own session and
+    # the original ORM object's scalar columns don't pick that up until re-fetched, while the
+    # `results` relationship (never loaded before that point) lazy-loads fresh on first access
+    # during response serialization - a real inconsistent-snapshot bug, not a timing fluke.
+    assert upload_body["status"] == "completed", (
+        f"upload response inconsistent: status={upload_body['status']!r} but "
+        f"results={upload_body['results']!r}"
+    )
+    assert upload_body["summary"], "upload response should already have a summary in eager mode"
+    assert upload_body["results"], "upload response should already have results in eager mode"
 
     detail = client.get(f"/api/reports/{report_id}", headers=auth_headers)
     assert detail.status_code == 200
