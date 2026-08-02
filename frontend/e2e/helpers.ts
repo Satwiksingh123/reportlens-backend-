@@ -50,7 +50,9 @@ export async function uploadAndAwaitResults(page: Page, filePath: string) {
   await page.locator('input[type="file"]').setInputFiles(filePath);
   await page.waitForURL(/\/reports\/\d+/);
   await expect(page.getByRole('heading', { name: 'Summary' })).toBeVisible({
-    timeout: Number(process.env.PIPELINE_TIMEOUT_MS ?? 600_000) - 30_000,
+    // slightly under the test timeout, so a slow pipeline fails here with a useful message
+    // rather than as an opaque whole-test timeout
+    timeout: Number(process.env.PIPELINE_TIMEOUT_MS ?? 1_200_000) - 30_000,
   });
 }
 

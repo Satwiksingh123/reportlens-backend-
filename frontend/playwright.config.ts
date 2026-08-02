@@ -11,9 +11,12 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './e2e',
-  // The pipeline is genuinely slow on CPU (OCR + a local LLM, ~30s per biomarker), so a
-  // single test legitimately runs for minutes. PIPELINE_TIMEOUT_MS overrides per-run.
-  timeout: Number(process.env.PIPELINE_TIMEOUT_MS ?? 600_000),
+  // The pipeline is genuinely slow on CPU: one local-LLM explanation per biomarker, ~30-60s
+  // each depending on load, plus OCR and a final summary. A 7-analyte panel measured
+  // anywhere from 4 to over 10 minutes on the same machine, so a 10-minute ceiling produced
+  // spurious failures for a pipeline that was working correctly, just slowly. 20 minutes is
+  // sized for the slow end of that range; PIPELINE_TIMEOUT_MS overrides per-run.
+  timeout: Number(process.env.PIPELINE_TIMEOUT_MS ?? 1_200_000),
   expect: { timeout: 15_000 },
   // Serial: the backend runs the pipeline on a small thread pool, and parallel uploads
   // would just queue behind each other while inflating every test's wall-clock time.
