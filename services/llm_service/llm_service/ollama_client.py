@@ -12,19 +12,31 @@ class OllamaUnavailable(RuntimeError):
 
 
 class OllamaClient:
+    # A biomarker explanation only needs a few sentences. Left unbounded, the model happily
+    # writes a couple of paragraphs, and on CPU generation time scales directly with tokens
+    # produced - so the cap is most of the difference between a snappy answer and a slow
+    # one. Sized with headroom above the ~120-token replies the prompts actually want, so it
+    # trims rambling rather than truncating a normal answer mid-sentence.
+    DEFAULT_MAX_TOKENS = 220
+
     def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5:7b",
-                 timeout: float = 120.0):
+                 timeout: float = 120.0, max_tokens: int = DEFAULT_MAX_TOKENS):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
+        self.max_tokens = max_tokens
 
-    def generate(self, system: str, prompt: str, temperature: float = 0.2) -> str:
+    def generate(self, system: str, prompt: str, temperature: float = 0.2,
+                 max_tokens: int | None = None) -> str:
         payload = {
             "model": self.model,
             "system": system,
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": temperature},
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens or self.max_tokens,
+            },
         }
         try:
             resp = httpx.post(

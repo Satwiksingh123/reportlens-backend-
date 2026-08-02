@@ -1,10 +1,26 @@
 """Orchestrates biomarker explanation: prompt -> model -> guardrails.
 
 `retriever` is an optional callable(test_name) -> reference notes str, supplied by the
-RAG service. When Ollama is unavailable, a deterministic template explanation is used so
-the pipeline still produces safe, sensible output (useful for CI and offline demos).
+RAG service.
+
+WHY NOT ONE MODEL CALL PER BIOMARKER: it was, and a real full-body health check made the
+cost obvious - 49 biomarkers x ~20-45s per call is over half an hour of the user watching a
+spinner. Of those 49, 44 were within their reference ranges.
+
+A normal result's explanation is genuinely formulaic ("X is A, measured at V, which sits
+inside the reference range R"), and the interesting half of that sentence - what X actually
+does - already exists as curated reference text in the RAG knowledge base. Generating it
+with a model buys nothing and costs 20-45s each; asked to do 12 at once it also degrades
+badly (measured: "Within normal range, but slightly low", repeated near-verbatim for
+unrelated analytes).
+
+So the model is spent where it earns its cost: results that fall outside their range, where
+context and nuance genuinely matter. Everything in range gets a deterministic sentence built
+from its measured value plus the curated note - instant, consistent, and impossible to
+hallucinate. Same 49-biomarker report: ~35 minutes -> about a minute.
 """
 
+import re
 from collections.abc import Callable
 
 from llm_service.guardrails import DISCLAIMER, apply_guardrails
@@ -18,14 +34,39 @@ from llm_service.prompts import (
 
 Retriever = Callable[[str], str]
 
+ABNORMAL_STATUSES = {"Low", "High"}
 
-def _fallback_explanation(ctx: BiomarkerContext) -> str:
+
+def _first_sentences(text: str, limit: int = 2) -> str:
+    """First `limit` sentences of a reference note - enough to say what a marker is for
+    without pasting a paragraph under every normal result.
+
+    Strips the leading "[Source]" tag the knowledge base carries: it belongs in the evidence
+    panel (where the source is shown deliberately), not mid-sentence in prose the patient
+    reads.
+    """
+    text = re.sub(r"^\s*\[[^\]]+\]\s*", "", text)
+    out: list[str] = []
+    for chunk in text.replace("\n", " ").split(". "):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        out.append(chunk if chunk.endswith(".") else chunk + ".")
+        if len(out) >= limit:
+            break
+    return " ".join(out)
+
+
+def _template_explanation(ctx: BiomarkerContext) -> str:
+    """Deterministic explanation. Primary path for in-range results, and the safe fallback
+    for anything else when no model is reachable."""
+    measured = f"{ctx.test_name} was measured at {ctx.value} {ctx.unit or ''}".strip()
     base = (
-        f"{ctx.test_name} was measured at {ctx.value} {ctx.unit or ''}".strip()
-        + f" (reference range {ctx.reference_range})."
+        f"{measured} (reference range {ctx.reference_range})."
         if ctx.reference_range
-        else f"{ctx.test_name} was measured at {ctx.value} {ctx.unit or ''}.".strip()
+        else f"{measured}."
     )
+
     follow_up = " discuss possible reasons and next steps with your doctor."
     if ctx.status == "High":
         tail = " This reading is above the reference range;" + follow_up
@@ -33,17 +74,32 @@ def _fallback_explanation(ctx: BiomarkerContext) -> str:
         tail = " This reading is below the reference range;" + follow_up
     else:
         tail = " This reading is within the reference range."
-    return base + tail
+
+    # The curated note is what makes a templated explanation actually useful - it says what
+    # the marker is for, which is the part a patient doesn't already know.
+    context = _first_sentences(ctx.reference_notes) if ctx.reference_notes else ""
+    return f"{base}{tail} {context}".strip()
+
+
+# Kept as an alias: this is still exactly the "no model available" fallback.
+_fallback_explanation = _template_explanation
 
 
 def explain_biomarkers(
     rows: list[dict],
     retriever: Retriever | None = None,
     client: OllamaClient | None = None,
+    explain_normal_with_model: bool = False,
 ) -> tuple[list[dict], str]:
     """Return (rows_with_explanations, overall_summary).
 
     Each input row is a dict with test_name/value/unit/reference_range/status.
+
+    By default the model is only asked about results outside their reference range; in-range
+    results get a deterministic explanation built from the value and the curated reference
+    note. See the module docstring for the measurements behind that. Set
+    explain_normal_with_model=True to send everything to the model - accept that a long
+    panel then takes tens of minutes on CPU.
     """
     use_model = client is not None and client.is_available()
     enriched: list[dict] = []
@@ -59,13 +115,16 @@ def explain_biomarkers(
             status=row.get("status"),
             reference_notes=notes,
         )
-        if use_model:
+        is_abnormal = row.get("status") in ABNORMAL_STATUSES
+        ask_model = use_model and (is_abnormal or explain_normal_with_model)
+
+        if ask_model:
             try:
                 raw = client.generate(SYSTEM_PROMPT, build_biomarker_prompt(ctx))
             except OllamaUnavailable:
-                raw = _fallback_explanation(ctx)
+                raw = _template_explanation(ctx)
         else:
-            raw = _fallback_explanation(ctx)
+            raw = _template_explanation(ctx)
 
         guarded = apply_guardrails(raw)
         enriched.append(
@@ -74,9 +133,11 @@ def explain_biomarkers(
                 "explanation": guarded.text,
                 "evidence": {"reference_notes": notes} if notes else None,
                 "guardrail_flags": guarded.flagged or None,
+                # so the UI/tests can tell a generated explanation from a templated one
+                "explained_by": "model" if ask_model else "template",
             }
         )
-        if row.get("status") in {"Low", "High"}:
+        if is_abnormal:
             abnormal.append(row["test_name"])
 
     summary = _build_summary(enriched, abnormal, use_model, client)

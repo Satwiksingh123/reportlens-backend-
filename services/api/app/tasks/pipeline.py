@@ -75,10 +75,19 @@ def _result_kwargs(row: dict) -> dict:
     JSON so nothing is silently lost and the insert stays schema-safe.
     """
     kwargs = {k: v for k, v in row.items() if k in _RESULT_COLUMNS}
-    flags = row.get("guardrail_flags")
-    if flags:
+
+    extras = {}
+    if row.get("guardrail_flags"):
+        extras["guardrail_flags"] = row["guardrail_flags"]
+    # Whether this explanation came from the model or the deterministic template. Worth
+    # keeping: it's the difference between generated prose and text assembled from the
+    # measured value plus a curated note, and you want to know which when reviewing output.
+    if row.get("explained_by"):
+        extras["explained_by"] = row["explained_by"]
+
+    if extras:
         evidence = dict(kwargs.get("evidence") or {})
-        evidence["guardrail_flags"] = flags
+        evidence.update(extras)
         kwargs["evidence"] = evidence
     return kwargs
 
